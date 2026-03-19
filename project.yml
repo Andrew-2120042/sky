@@ -1,0 +1,36 @@
+name: Sky
+options:
+  bundleIdPrefix: com.andrewwilson
+  deploymentTarget:
+    macOS: "13.0"
+  xcodeVersion: "15"
+  createIntermediateGroups: true
+
+packages:
+  SQLite:
+    url: https://github.com/stephencelis/SQLite.swift
+    from: 0.15.3
+
+targets:
+  Sky:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Sky
+    resources:
+      - path: Sky/Resources/Assets.xcassets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.andrewwilson.Sky
+        SWIFT_VERSION: 5.9
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        INFOPLIST_FILE: Sky/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Sky/Resources/Sky.entitlements
+        SWIFT_STRICT_CONCURRENCY: complete
+        GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    dependencies:
+      - package: SQLite
+        product: SQLite
