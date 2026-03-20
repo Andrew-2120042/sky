@@ -20,11 +20,13 @@ final class SkillsService: Sendable {
     struct Skill: Codable {
         let name: String
         let triggers: [String]
+        let startUrl: String?
         let overview: String
         let pages: [Page]?
         let generalHint: String?
         enum CodingKeys: String, CodingKey {
             case name, triggers, overview, pages
+            case startUrl = "start_url"
             case generalHint = "general_hint"
         }
     }
@@ -45,12 +47,22 @@ final class SkillsService: Sendable {
     // MARK: - Lookup
 
     /// Returns a hint string for the given goal and optional current URL.
-    /// Prefers a page-specific hint when the URL matches; falls back to generalHint.
+    /// Matches by goal keywords OR by URL when the browser is already on a matching site.
     func findHint(for goal: String, currentURL: String? = nil) -> String? {
-        let lowerGoal = goal.lowercased()
+        let lower = goal.lowercased()
+        let urlLower = currentURL?.lowercased() ?? ""
+
         guard let skill = skills.first(where: { skill in
-            skill.triggers.contains(where: { lowerGoal.contains($0.lowercased()) })
+            let matchesGoal = skill.triggers.allSatisfy { lower.contains($0.lowercased()) }
+            let matchesURL = !urlLower.isEmpty
+                && skill.triggers.contains(where: { urlLower.contains($0.lowercased()) })
+                && skill.triggers.contains(where: {
+                    lower.contains($0.lowercased()) || $0 == "order" || $0 == "cancel"
+                })
+            return matchesGoal || matchesURL
         }) else { return nil }
+
+        print("🎯 [Skills] Matched skill: \(skill.name)")
 
         // Try URL-aware page match first
         if let url = currentURL, let pages = skill.pages {
@@ -61,13 +73,33 @@ final class SkillsService: Sendable {
             }) {
                 return "Skill: \(skill.name)\nPage: \(matched.description)\n\(matched.instructions)"
             }
-            // URL didn't match any page — return overview + all page hints
             let pagesText = allPages.joined(separator: "\n\n")
             return "Skill: \(skill.name)\n\(skill.overview)\n\nPage hints:\n\(pagesText)"
         }
 
-        // No URL or no pages — use generalHint or overview
         return "Skill: \(skill.name)\n\(skill.generalHint ?? skill.overview)"
+    }
+
+    /// Returns a start URL for the given goal — extracts an http URL from the goal text,
+    /// or falls back to the skill's start_url / first page domain.
+    func findStartUrl(for goal: String, currentURL: String? = nil) -> String? {
+        let words = goal.components(separatedBy: .whitespaces)
+        if let urlWord = words.first(where: { $0.hasPrefix("http") }) { return urlWord }
+
+        let lower = goal.lowercased()
+        let urlLower = currentURL?.lowercased() ?? ""
+
+        for skill in skills {
+            let matchesGoal = skill.triggers.allSatisfy { lower.contains($0.lowercased()) }
+            let matchesURL = !urlLower.isEmpty
+                && skill.triggers.contains(where: { urlLower.contains($0.lowercased()) })
+            guard matchesGoal || matchesURL else { continue }
+            if let su = skill.startUrl { return su }
+            if let urlPattern = skill.pages?.first?.urlContains {
+                return urlPattern.hasPrefix("http") ? urlPattern : "https://\(urlPattern)"
+            }
+        }
+        return nil
     }
 
     // MARK: - Seeding
@@ -87,7 +119,6 @@ final class SkillsService: Sendable {
 
         for item in defaults {
             let fileURL = dir.appendingPathComponent(item.name)
-            guard !FileManager.default.fileExists(atPath: fileURL.path) else { continue }
             try? item.content.write(to: fileURL, atomically: true, encoding: .utf8)
         }
     }
@@ -138,19 +169,40 @@ final class SkillsService: Sendable {
     private let amazonOrderSkill = """
     {
       "name": "amazon_order",
-      "triggers": ["amazon", "order on amazon", "buy on amazon"],
-      "overview": "Placing an order on Amazon using Buy Now. Exact flow: Buy Now → checkout → select payment → Use this payment method → Place your order.",
-      "general_hint": "On Amazon, always use Buy Now (not Add to Cart) when the goal is to place an order. Done only when order confirmation screen appears.",
+      "triggers": ["amazon", "order"],
+      "start_url": "https://www.amazon.in",
+      "overview": "Place an order on Amazon India with cash on delivery.",
+      "general_hint": "Amazon COD order flow: Buy Now → select Cash on Delivery → Use this payment method → Place your order. Never click Add to Shopping Cart. Never click Cash on Delivery more than once.",
       "pages": [
         {
-          "url_contains": "amazon.in",
-          "description": "Amazon India product page",
-          "instructions": "EXACT ORDER FLOW — follow strictly: STEP 1: Click 'Buy Now' (NOT 'Add to Cart'). Buy Now goes straight to secure checkout. STEP 2: On the secure checkout page, find and click 'Cash on Delivery' (or the required payment method) — it will be in the elements list. STEP 3: Click 'Use this payment method' — this button MUST be clicked after selecting a payment method. STEP 4: On the final review page, click 'Place your order'. DONE only when you see order confirmation with an order ID. NEVER call done after just selecting a payment method."
+          "url_contains": "amazon.in/dp/",
+          "description": "Amazon product detail page",
+          "instructions": "You are on a product page. Click 'Buy Now' button to go directly to checkout. Do NOT click 'Add to Shopping Cart'. Buy Now is faster and goes straight to checkout."
         },
         {
-          "url_contains": "amazon.com",
-          "description": "Amazon US product page",
-          "instructions": "EXACT ORDER FLOW: STEP 1: Click 'Buy Now'. STEP 2: On checkout, scroll down to see all options. STEP 3: Select the payment method. STEP 4: Click 'Use this payment method'. STEP 5: Click 'Place your order'. Done only on order confirmation screen."
+          "url_contains": "amazon.in/gp/cart",
+          "description": "Amazon cart page",
+          "instructions": "Click the 'Proceed to Buy' yellow button."
+        },
+        {
+          "url_contains": "amazon.in/gp/buy/addressselect",
+          "description": "Amazon address selection page",
+          "instructions": "Your saved address should already be selected. Click 'Use this address' or 'Deliver to this address' or 'Continue'."
+        },
+        {
+          "url_contains": "amazon.in/gp/buy/payselect",
+          "description": "Amazon payment selection page — CRITICAL STEPS",
+          "instructions": "EXACT STEPS FOR THIS PAGE: STEP 1 — Find and click 'Cash on Delivery/Pay on Delivery' radio button from PAYMENT OPTIONS to select it. STEP 2 — After selecting it, click 'Use this payment method' button. This is different from 'Continue'. Look specifically for 'Use this payment method'. STEP 3 — You will then land on the order review page. Do NOT click Cash on Delivery again after you have already clicked 'Use this payment method'."
+        },
+        {
+          "url_contains": "amazon.in/gp/buy/spc",
+          "description": "Amazon order review page — FINAL STEP",
+          "instructions": "You are on the final review page. Click 'Place your order' button to complete the purchase. This is the last step. After clicking you will see order confirmation."
+        },
+        {
+          "url_contains": "amazon.in/gp/buy/thankyou",
+          "description": "Amazon order confirmation",
+          "instructions": "Order placed successfully. Return done immediately."
         }
       ]
     }

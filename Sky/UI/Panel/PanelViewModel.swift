@@ -25,6 +25,8 @@ enum PanelState {
     case workflowConfirmation(WorkflowService.Workflow)
     /// Multiple contacts matched params.to — needs disambiguation via dropdown
     case asking(question: String, candidates: [ResolvedContact], pendingIntent: ParsedIntent)
+    /// Headless browser is about to take an irreversible action — needs user confirmation
+    case browserConfirmation(message: String, target: String)
 }
 
 /// MVVM ViewModel — owns all panel state and orchestrates parsing + routing.
@@ -42,12 +44,27 @@ final class PanelViewModel: ObservableObject {
 
     private let parser = IntentParser()
     private let router = ActionRouter()
+    private var browserConfirmationObserver: Any?
 
     /// In-memory session history for clarification follow-ups (max 3 exchanges, never persisted).
     private var sessionHistory: [(userMessage: String, assistantResponse: String)] = []
 
     /// Running countdown task for destructive actions; cancelled on reset/cancel.
     private var countdownTask: Task<Void, Never>?
+
+    // MARK: - Init / Deinit
+
+    init() {
+        browserConfirmationObserver = NotificationCenter.default.addObserver(
+            forName: Constants.NotificationName.skyBrowserConfirmation,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            let msg = note.userInfo?["message"] as? String ?? "About to take an action. Confirm?"
+            let target = note.userInfo?["target"] as? String ?? ""
+            MainActor.assumeIsolated { self?.state = .browserConfirmation(message: msg, target: target) }
+        }
+    }
 
     // MARK: - Public API
 
@@ -248,6 +265,19 @@ final class PanelViewModel: ObservableObject {
     func cancelAsking() {
         contactSuggestions = []
         state = .idle
+    }
+
+    /// Called when the user taps Allow Once, Allow Always, or Cancel on the browser confirmation card.
+    func confirmBrowserAction(confirm: Bool, always: Bool = false) {
+        if confirm, always, case .browserConfirmation(_, let target) = state {
+            BrowserConfirmationStore.setAlwaysAllowed(target: target)
+        }
+        HeadlessBrowserService.shared.confirmAction(confirm: confirm)
+        if !confirm {
+            state = .answer(text: "Action cancelled.")
+        } else {
+            state = .loading
+        }
     }
 
     /// Called when the user presses Escape.

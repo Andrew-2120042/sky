@@ -1,0 +1,12 @@
+{
+  "name": "sky-browser",
+  "version": "1.0.0",
+  "description": "Sky headless browser engine",
+  "main": "runner.js",
+  "scripts": {
+    "install-browsers": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0"
+  }
+}

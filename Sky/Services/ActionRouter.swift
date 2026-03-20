@@ -56,6 +56,9 @@ final class ActionRouter: Sendable {
         case Constants.ActionType.saveMemory:       result = handleSaveMemory(params: action.params)
         case Constants.ActionType.whatDoYouSee:     result = await handleWhatDoYouSee()
         case Constants.ActionType.resolvePermission: result = await handleResolvePermission(params: params)
+        case Constants.ActionType.testBrowser:      result = await handleTestBrowser()
+        case Constants.ActionType.browserLogin:     result = await handleBrowserLogin(params: params)
+        case Constants.ActionType.browserLoginDone: result = await handleBrowserLoginDone()
         case Constants.ActionType.unknown:          result = .success("")
         default:
             LoggingService.shared.log("Unknown action type: \(action.action)", level: .warning)
@@ -652,50 +655,30 @@ final class ActionRouter: Sendable {
 
     private func handleExecuteFlow(params: IntentParams) async -> ActionResult {
         let goal = params.body ?? params.query ?? ""
-        guard !goal.isEmpty else {
-            return .failure("What flow should I complete?")
-        }
-        print("🔄 [ActionRouter] execute_flow: '\(goal)'")
+        guard !goal.isEmpty else { return .failure("What should I do?") }
 
-        // If a URL is provided, open it first and wait for page load
-        if let urlString = params.url, let url = URL(string: urlString) {
-            await openURL(url)
-            let isHeavySite = ["amazon", "flipkart", "myntra", "meesho"].contains(where: { urlString.contains($0) })
-            let waitTime: UInt64 = isHeavySite ? 7_000_000_000 : 4_000_000_000
-            try? await Task.sleep(nanoseconds: waitTime)
-        }
+        // Use URL from parsed intent, or fall back to whatever page the user has open
+        let contextURL = params.url ?? ContextService.shared.browserURL
+
+        print("🌐 [ActionRouter] execute_flow via headless browser: '\(goal)' startUrl=\(contextURL ?? "none")")
 
         await MainActor.run {
             NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
         }
-        for _ in 0..<20 {
-            try? await Task.sleep(nanoseconds: 100_000_000)
-            let frontmost = await MainActor.run {
-                NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-            }
-            if frontmost != Bundle.main.bundleIdentifier { break }
-        }
-        try? await Task.sleep(nanoseconds: 300_000_000)
 
-        let result = await MainActor.run { FlowExecutionService.shared }.executeFlow(
+        let result = await HeadlessFlowService.shared.execute(
             goal: goal,
-            progressHandler: { print("🔄 [Flow] Progress: \($0)") }
+            contextURL: contextURL,
+            progressHandler: { msg in print("🌐 [HeadlessFlow] \(msg)") }
         )
 
         await MainActor.run {
-            NotificationCenter.default.post(
-                name: Constants.NotificationName.skyShowPanel, object: nil)
+            NotificationCenter.default.post(name: Constants.NotificationName.skyShowPanel, object: nil)
         }
 
-        if result.hasPrefix("PERMISSION_NEEDED:") {
-            let parts = result.replacingOccurrences(of: "PERMISSION_NEEDED:", with: "")
-            return .answer("\(parts)\n\nSay 'allow', 'never', or 'don't allow'.")
-        }
-
-        let succeeded = !result.hasPrefix("Stopped") && !result.hasPrefix("Couldn't")
-            && !result.hasPrefix("Reached")
-        ActionLogService.shared.record(summary: "Flow: \(goal) → \(result)", succeeded: succeeded)
-        return .answer(result)
+        let succeeded = !result.hasPrefix("Browser error") && !result.contains("could not complete")
+            && !result.contains("Stuck") && !result.contains("Reached maximum")
+        return succeeded ? .answer(result) : .failure(result)
     }
 
     // MARK: - Media Play Specific
@@ -925,6 +908,54 @@ final class ActionRouter: Sendable {
     /// Opens a URL on the main actor via NSWorkspace.
     private func openURL(_ url: URL) async {
         _ = await MainActor.run { NSWorkspace.shared.open(url) }
+    }
+
+    // MARK: - Browser Login
+
+    private func handleBrowserLogin(params: IntentParams) async -> ActionResult {
+        let site = (params.body ?? "amazon").lowercased()
+        let loginURLs: [String: String] = [
+            "amazon":   "https://www.amazon.in/ap/signin",
+            "flipkart": "https://www.flipkart.com/account/login",
+            "swiggy":   "https://www.swiggy.com/",
+            "zomato":   "https://www.zomato.com/"
+        ]
+        let url = loginURLs.first(where: { site.contains($0.key) })?.value ?? "https://www.amazon.in"
+        let siteName = loginURLs.keys.first(where: { site.contains($0) }) ?? site
+        do {
+            let browser = await MainActor.run { HeadlessBrowserService.shared }
+            try await browser.start()
+            try await browser.startLoginFlow(url: url)
+            return .answer("A browser window just opened at \(siteName). Log in manually, then say \"done\".")
+        } catch {
+            return .failure("Could not open login browser: \(error.localizedDescription)")
+        }
+    }
+
+    private func handleBrowserLoginDone() async -> ActionResult {
+        let browser = await MainActor.run { HeadlessBrowserService.shared }
+        await MainActor.run { browser.signalLoginDone() }
+        do {
+            try await browser.waitForLoginComplete()
+            return .answer("Login saved ✓ Sky will use this session for all future flows.")
+        } catch {
+            return .failure("Login session could not be saved: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Test Browser
+
+    private func handleTestBrowser() async -> ActionResult {
+        do {
+            let browser = await MainActor.run { HeadlessBrowserService.shared }
+            try await browser.start()
+            try await browser.navigate(to: "https://www.amazon.in")
+            let snapshot = try await browser.takeSnapshot()
+            await MainActor.run { browser.stop() }
+            return .answer("Headless browser working ✓\n\nAmazon snapshot:\n\(String(snapshot.prefix(400)))")
+        } catch {
+            return .failure("Browser test failed: \(error.localizedDescription)")
+        }
     }
 
     /// Runs a subprocess and returns stdout as a String.

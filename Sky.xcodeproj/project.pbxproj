@@ -10,6 +10,7 @@
 		049D08B5114BA6E626822873 /* PanelViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27D9594C58B7DDE83D9B8C7F /* PanelViewModel.swift */; };
 		0B42232924091D99ED4D149D /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = FFBA9353FACF9CF1766037CF /* SQLite */; };
 		0BB4803A23C85039AD831661 /* ParsedIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE77558377E9DF6FB494F28F /* ParsedIntent.swift */; };
+		0C08B9C5DB15FE9F49FE69EA /* FlowExecutionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B907D4D9BDC39BDF320B28 /* FlowExecutionService.swift */; };
 		1020D048538DC1CB14818DF6 /* LoggingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D72F4F64C70F13159405E99 /* LoggingService.swift */; };
 		12B5095ADFD71ECD57621DDE /* ResolvedContact.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78C2B87BC76A9E66A6991E0D /* ResolvedContact.swift */; };
 		1348FDAF83B773F5533F5D7C /* WorkflowsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35111BFDD3D2E08861A13FD4 /* WorkflowsWindowController.swift */; };
@@ -23,6 +24,7 @@
 		5F63F71C004B118220BAD56B /* ScheduledActionsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59D0C686E364B5DCB5D738B8 /* ScheduledActionsWindowController.swift */; };
 		700CDCB50659BFFF2A914976 /* PermissionsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEC01F357F8D924ABFA8F9D8 /* PermissionsManager.swift */; };
 		70FD542658AE8A6751788914 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7076FB36E4EBBAA913261ECA /* MenuBarController.swift */; };
+		744F2FFD12CF4CDA4902591D /* HeadlessBrowserService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21D7F77CC48FF88A54910808 /* HeadlessBrowserService.swift */; };
 		770A4170A97AE38836FC436C /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 017283F2475B6531D28A2F06 /* HotkeyManager.swift */; };
 		84A5202EAAAA00F0D69B3DD1 /* ContactDropdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43630CCD10BC55BC5C634E8C /* ContactDropdownView.swift */; };
 		8E974DCC8E755ADC0FBCEBCA /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B3ABE40CB0C92F09F43BCC /* Constants.swift */; };
@@ -31,9 +33,9 @@
 		B122B84B11B81337E704D39C /* ScheduledAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F2D6474B7D7AC384150F55 /* ScheduledAction.swift */; };
 		B39E9F4CA66F5A005AECA11B /* IntentParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16A3AE515A2E8974D5B0B00 /* IntentParser.swift */; };
 		B96F2A50405EF667F70166ED /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7854C97ED739363C486A8A48 /* NotificationService.swift */; };
+		C2E28201C9E55B41866C09C3 /* SkillsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B3B6D536E27EE9D727283 /* SkillsService.swift */; };
+		67D1F56A02384CEF856C08AB /* HeadlessFlowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2DA21447E54483EA783325A /* HeadlessFlowService.swift */; };
 		C52058FB15580BBEBC66BF40 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D1625C709266EB4938C3DF /* DatabaseManager.swift */; };
-		AA11BB22CC33DD44EE55FF66 /* SkillsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF66AA11 /* SkillsService.swift */; };
-		2981A9A30CC0412BBE953C99 /* FlowExecutionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3E07DB39741619F266592 /* FlowExecutionService.swift */; };
 		C7C5550D80805BF9F553FBFF /* ComputerUseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584BB3144C4E7A233ACE57FB /* ComputerUseService.swift */; };
 		C8507CD3B31778564AA78369 /* ConfigService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5467356CE951CE1D666BC06F /* ConfigService.swift */; };
 		C92F1E1237FFEDD0B9E3916C /* SchedulerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B09CAC09E47262613E892DC /* SchedulerService.swift */; };
@@ -41,6 +43,8 @@
 		CD88527E7C7829CCCE8A99F3 /* ContactsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D795ED8925D69ADFCC547285 /* ContactsService.swift */; };
 		DB34A9EFC97A15DD48AEBCEF /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CBFA652A71173639DD5D3E /* SettingsWindowController.swift */; };
 		DDC8864CD435CB8B410D371F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 62803ABFF87A3903B4AB4E5D /* Assets.xcassets */; };
+		4E89617F369944608AFEAC98 /* runner.js in Resources */ = {isa = PBXBuildFile; fileRef = 58FC9BC7AB724529ADBDC34F /* runner.js */; };
+		A84B7F0CC3D94D0EB00B762E /* node_modules in Resources */ = {isa = PBXBuildFile; fileRef = 0546FBEA3C314D7782F00FC1 /* node_modules */; };
 		DDE1959338AF8D435948518E /* RecentActionsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B115EB3D6B64F85BAE8F3075 /* RecentActionsWindowController.swift */; };
 		E8BCA679B96829F72294DC5C /* PanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF55DD01F60E5E2B086C258 /* PanelViewController.swift */; };
 		F0E1B56948C73BB88C5368C0 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5596F3B867AB808651E3A535 /* main.swift */; };
@@ -53,19 +57,22 @@
 		017283F2475B6531D28A2F06 /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		12D1625C709266EB4938C3DF /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
 		20C9ADC8CF20CFA75D9C2CA2 /* AppleScriptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptService.swift; sourceTree = "<group>"; };
+		21D7F77CC48FF88A54910808 /* HeadlessBrowserService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadlessBrowserService.swift; sourceTree = "<group>"; };
+		A2DA21447E54483EA783325A /* HeadlessFlowService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadlessFlowService.swift; sourceTree = "<group>"; };
 		27D9594C58B7DDE83D9B8C7F /* PanelViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelViewModel.swift; sourceTree = "<group>"; };
 		35111BFDD3D2E08861A13FD4 /* WorkflowsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowsWindowController.swift; sourceTree = "<group>"; };
 		36B3ABE40CB0C92F09F43BCC /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		40B907D4D9BDC39BDF320B28 /* FlowExecutionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowExecutionService.swift; sourceTree = "<group>"; };
 		422AD38AC6AF16548DB9C135 /* WorkflowService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowService.swift; sourceTree = "<group>"; };
 		43630CCD10BC55BC5C634E8C /* ContactDropdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactDropdownView.swift; sourceTree = "<group>"; };
 		4D4C526491806806D6B1B34F /* Sky.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Sky.entitlements; sourceTree = "<group>"; };
 		5467356CE951CE1D666BC06F /* ConfigService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigService.swift; sourceTree = "<group>"; };
 		5596F3B867AB808651E3A535 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		584BB3144C4E7A233ACE57FB /* ComputerUseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComputerUseService.swift; sourceTree = "<group>"; };
-		BB22CC33DD44EE55FF66AA11 /* SkillsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsService.swift; sourceTree = "<group>"; };
-		A1A3E07DB39741619F266592 /* FlowExecutionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowExecutionService.swift; sourceTree = "<group>"; };
 		59D0C686E364B5DCB5D738B8 /* ScheduledActionsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledActionsWindowController.swift; sourceTree = "<group>"; };
 		62803ABFF87A3903B4AB4E5D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		58FC9BC7AB724529ADBDC34F /* runner.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = runner.js; path = sky-browser/runner.js; sourceTree = SOURCE_ROOT; };
+		0546FBEA3C314D7782F00FC1 /* node_modules */ = {isa = PBXFileReference; lastKnownFileType = folder; name = node_modules; path = sky-browser/node_modules; sourceTree = SOURCE_ROOT; };
 		63CBFA652A71173639DD5D3E /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		7076FB36E4EBBAA913261ECA /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		74B3053CC4A323928D59F6D5 /* ActionRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionRouter.swift; sourceTree = "<group>"; };
@@ -87,6 +94,7 @@
 		B6C797873397A5943C10B634 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BCF55DD01F60E5E2B086C258 /* PanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelViewController.swift; sourceTree = "<group>"; };
 		D795ED8925D69ADFCC547285 /* ContactsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsService.swift; sourceTree = "<group>"; };
+		DD5B3B6D536E27EE9D727283 /* SkillsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsService.swift; sourceTree = "<group>"; };
 		EE77558377E9DF6FB494F28F /* ParsedIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedIntent.swift; sourceTree = "<group>"; };
 		EEC01F357F8D924ABFA8F9D8 /* PermissionsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManager.swift; sourceTree = "<group>"; };
 		F09EF9EC62CC17830D799662 /* MemoryWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryWindowController.swift; sourceTree = "<group>"; };
@@ -233,11 +241,12 @@
 				B4C1F82DBBDC1B0BAB666FCE /* BrowserContextService.swift */,
 				F3F78D093E81369642E65B0A /* CalculatorService.swift */,
 				584BB3144C4E7A233ACE57FB /* ComputerUseService.swift */,
-				A1A3E07DB39741619F266592 /* FlowExecutionService.swift */,
-				BB22CC33DD44EE55FF66AA11 /* SkillsService.swift */,
 				5467356CE951CE1D666BC06F /* ConfigService.swift */,
 				D795ED8925D69ADFCC547285 /* ContactsService.swift */,
 				88AD71161047B722F365A5EC /* ContextService.swift */,
+				40B907D4D9BDC39BDF320B28 /* FlowExecutionService.swift */,
+				21D7F77CC48FF88A54910808 /* HeadlessBrowserService.swift */,
+				A2DA21447E54483EA783325A /* HeadlessFlowService.swift */,
 				017283F2475B6531D28A2F06 /* HotkeyManager.swift */,
 				B16A3AE515A2E8974D5B0B00 /* IntentParser.swift */,
 				8D72F4F64C70F13159405E99 /* LoggingService.swift */,
@@ -245,6 +254,7 @@
 				7854C97ED739363C486A8A48 /* NotificationService.swift */,
 				EEC01F357F8D924ABFA8F9D8 /* PermissionsManager.swift */,
 				9B09CAC09E47262613E892DC /* SchedulerService.swift */,
+				DD5B3B6D536E27EE9D727283 /* SkillsService.swift */,
 				422AD38AC6AF16548DB9C135 /* WorkflowService.swift */,
 			);
 			path = Services;
@@ -254,6 +264,8 @@
 			isa = PBXGroup;
 			children = (
 				62803ABFF87A3903B4AB4E5D /* Assets.xcassets */,
+				58FC9BC7AB724529ADBDC34F /* runner.js */,
+				0546FBEA3C314D7782F00FC1 /* node_modules */,
 				B6C797873397A5943C10B634 /* Info.plist */,
 				4D4C526491806806D6B1B34F /* Sky.entitlements */,
 			);
@@ -348,6 +360,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				DDC8864CD435CB8B410D371F /* Assets.xcassets in Resources */,
+				4E89617F369944608AFEAC98 /* runner.js in Resources */,
+				A84B7F0CC3D94D0EB00B762E /* node_modules in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -365,8 +379,6 @@
 				FD62F74F76F4A8CA2979FE3E /* AppleScriptService.swift in Sources */,
 				49777B6D67BA54E6658B3C33 /* BrowserContextService.swift in Sources */,
 				1E7826E4ED1A54E159269D3F /* CalculatorService.swift in Sources */,
-				2981A9A30CC0412BBE953C99 /* FlowExecutionService.swift in Sources */,
-				AA11BB22CC33DD44EE55FF66 /* SkillsService.swift in Sources */,
 				C7C5550D80805BF9F553FBFF /* ComputerUseService.swift in Sources */,
 				18BBED97AFC74161DFF692A1 /* Config.swift in Sources */,
 				C8507CD3B31778564AA78369 /* ConfigService.swift in Sources */,
@@ -376,6 +388,9 @@
 				161149A33BA95DECBA141210 /* ContextService.swift in Sources */,
 				C52058FB15580BBEBC66BF40 /* DatabaseManager.swift in Sources */,
 				180A1D1DBB9BB8956B207622 /* FloatingPanel.swift in Sources */,
+				0C08B9C5DB15FE9F49FE69EA /* FlowExecutionService.swift in Sources */,
+				744F2FFD12CF4CDA4902591D /* HeadlessBrowserService.swift in Sources */,
+				67D1F56A02384CEF856C08AB /* HeadlessFlowService.swift in Sources */,
 				770A4170A97AE38836FC436C /* HotkeyManager.swift in Sources */,
 				B39E9F4CA66F5A005AECA11B /* IntentParser.swift in Sources */,
 				1020D048538DC1CB14818DF6 /* LoggingService.swift in Sources */,
@@ -393,6 +408,7 @@
 				5F63F71C004B118220BAD56B /* ScheduledActionsWindowController.swift in Sources */,
 				C92F1E1237FFEDD0B9E3916C /* SchedulerService.swift in Sources */,
 				DB34A9EFC97A15DD48AEBCEF /* SettingsWindowController.swift in Sources */,
+				C2E28201C9E55B41866C09C3 /* SkillsService.swift in Sources */,
 				2835DCE6B91B26C658F95D41 /* WorkflowService.swift in Sources */,
 				1348FDAF83B773F5533F5D7C /* WorkflowsWindowController.swift in Sources */,
 				F0E1B56948C73BB88C5368C0 /* main.swift in Sources */,

@@ -92,6 +92,15 @@ final class PanelViewController: NSViewController {
         return b
     }()
 
+    /// "Allow Always" button — shown only on browser confirmation card
+    private let allowAlwaysButton: NSButton = {
+        let b = NSButton(title: "Always", target: nil, action: nil)
+        b.bezelStyle = .rounded
+        b.controlSize = .regular
+        b.isHidden = true
+        return b
+    }()
+
     /// Brief success message shown after a completed action (no card — just clean text)
     private let successLabel: NSTextField = {
         let tf = NSTextField(labelWithString: "")
@@ -198,6 +207,8 @@ final class PanelViewController: NSViewController {
         doItButton.action = #selector(doItTapped)
         cancelButton.target = self
         cancelButton.action = #selector(cancelTapped)
+        allowAlwaysButton.target = self
+        allowAlwaysButton.action = #selector(allowAlwaysTapped)
 
         contactDropdown.onSelect = { [weak self] contact in
             guard let self else { return }
@@ -247,13 +258,14 @@ final class PanelViewController: NSViewController {
         cardContainer.addSubview(summaryLabel)
         cardContainer.addSubview(doItButton)
         cardContainer.addSubview(cancelButton)
+        cardContainer.addSubview(allowAlwaysButton)
         setupContainer.addSubview(providerControl)
         setupContainer.addSubview(anthropicKeyField)
         setupContainer.addSubview(openaiKeyField)
         setupContainer.addSubview(setupSaveButton)
 
         [vibrancyView, textField, spinner, separator, cardContainer,
-         summaryLabel, doItButton, cancelButton, successLabel, contactDropdown,
+         summaryLabel, doItButton, cancelButton, allowAlwaysButton, successLabel, contactDropdown,
          setupContainer, providerControl, anthropicKeyField, openaiKeyField,
          setupSaveButton, answerScrollView].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
@@ -304,6 +316,10 @@ final class PanelViewController: NSViewController {
 
             cancelButton.leadingAnchor.constraint(equalTo: doItButton.trailingAnchor, constant: 8),
             cancelButton.bottomAnchor.constraint(equalTo: cardContainer.bottomAnchor, constant: -12),
+
+            // "Allow Always" button — pinned to trailing edge, visible only on browser confirmation
+            allowAlwaysButton.trailingAnchor.constraint(equalTo: cardContainer.trailingAnchor, constant: -20),
+            allowAlwaysButton.bottomAnchor.constraint(equalTo: cardContainer.bottomAnchor, constant: -12),
 
             // Success label — centered in the input row
             successLabel.leadingAnchor.constraint(equalTo: vibrancyView.leadingAnchor, constant: 20),
@@ -385,6 +401,7 @@ final class PanelViewController: NSViewController {
             successLabel.isHidden = true
             setupContainer.isHidden = true
             answerScrollView.isHidden = true
+            allowAlwaysButton.isHidden = true
             separator.isHidden = true
             resizePanel(showCard: false)
             textField.placeholderString = Constants.Panel.placeholder
@@ -403,6 +420,7 @@ final class PanelViewController: NSViewController {
             textField.isEnabled = true
             successLabel.isHidden = true
             setupContainer.isHidden = true
+            allowAlwaysButton.isHidden = true
             summaryLabel.stringValue = intent.displaySummary
             summaryLabel.textColor = .labelColor
             let firstActionType = intent.firstAction?.action
@@ -518,6 +536,24 @@ final class PanelViewController: NSViewController {
             showCard(true, animated: true)
             resizePanel(showCard: true)
 
+        case .browserConfirmation(let message, _):
+            spinner.stopAnimation(nil)
+            spinner.isHidden = true
+            textField.isEnabled = false
+            textField.isHidden = false
+            successLabel.isHidden = true
+            setupContainer.isHidden = true
+            answerScrollView.isHidden = true
+            summaryLabel.stringValue = message
+            summaryLabel.textColor = .labelColor
+            doItButton.title = "Allow Once"
+            doItButton.isHidden = false
+            cancelButton.title = "Cancel"
+            allowAlwaysButton.isHidden = false
+            hideContactDropdown()
+            showCard(true, animated: true)
+            resizePanel(showCard: true)
+
         case .asking(let question, _, _):
             spinner.stopAnimation(nil)
             spinner.isHidden = true
@@ -625,12 +661,23 @@ final class PanelViewController: NSViewController {
             viewModel.confirm(intent: intent)
         case .workflowConfirmation(let workflow):
             viewModel.runWorkflow(workflow)
+        case .browserConfirmation:
+            viewModel.confirmBrowserAction(confirm: true, always: false)
         default:
             break
         }
     }
 
+    @objc private func allowAlwaysTapped() {
+        guard case .browserConfirmation = viewModel.state else { return }
+        viewModel.confirmBrowserAction(confirm: true, always: true)
+    }
+
     @objc private func cancelTapped() {
+        if case .browserConfirmation = viewModel.state {
+            viewModel.confirmBrowserAction(confirm: false)
+            return
+        }
         viewModel.cancel()
         resizePanel(showCard: false)
         NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)

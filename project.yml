@@ -20,6 +20,10 @@ targets:
       - path: Sky
     resources:
       - path: Sky/Resources/Assets.xcassets
+      - path: sky-browser/runner.js
+      - path: sky-browser/node_modules
+        buildPhase: resources
+        type: folder
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.andrewwilson.Sky

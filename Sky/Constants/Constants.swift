@@ -211,8 +211,9 @@ enum Constants {
     // MARK: - App Aliases — maps casual names / common spellings to bundle IDs
     // MARK: - Notification Names
     enum NotificationName {
-        static let hidePanel          = Foundation.Notification.Name("sky.panel.hide")
-        static let skyShowPanel       = Foundation.Notification.Name("sky.panel.show")
+        static let hidePanel                = Foundation.Notification.Name("sky.panel.hide")
+        static let skyShowPanel             = Foundation.Notification.Name("sky.panel.show")
+        static let skyBrowserConfirmation   = Foundation.Notification.Name("sky.browser.confirmation")
     }
 
     static let appAliases: [String: String] = [
@@ -287,6 +288,9 @@ enum Constants {
         static let mediaPlaySpecific = "media_play_specific"
         static let whatDoYouSee      = "what_do_you_see"
         static let resolvePermission = "resolve_permission"
+        static let testBrowser       = "test_browser"
+        static let browserLogin      = "browser_login"
+        static let browserLoginDone  = "browser_login_done"
         static let unknown = "unknown"
     }
 
@@ -455,6 +459,9 @@ enum Constants {
     - media_play_specific: Use when the user wants to play a specific song, artist, album, or playlist. Set params.query to what to play, params.body to "spotify" or "music" based on context or preference.
     - what_do_you_see: Use when the user asks what's on the current page, what Sky can see, what elements are available, or what Sky can do here. No params needed.
     - resolve_permission: Use when the user says "allow", "allow always", "never", "don't allow" after Sky showed a PERMISSION dialog. Set params.body = their choice (e.g. "Allow", "Never for This Website", "Don't Allow"). Set params.query = the permission key from context (e.g. "permission_meet.google.com_camera").
+    - test_browser: TEMPORARY TEST ACTION — use when user says "test browser" or "test headless". No params needed.
+    - browser_login: Use when user says "login amazon", "login flipkart", "sign in to amazon", "authenticate amazon", or similar. Set params.body to the site name (e.g. "amazon", "flipkart").
+    - browser_login_done: Use when user says "done", "logged in", "finished" after Sky asked them to log in. No params needed.
     - unknown: Intent is unclear or cannot be determined
 
     If the intent is unclear, set action to "unknown" and set display_summary to a clarifying question for the user.

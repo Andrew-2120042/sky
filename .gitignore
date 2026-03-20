@@ -1,0 +1,15 @@
+# Xcode
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData/
+
+# Node
+sky-browser/node_modules/
+
+# macOS
+.DS_Store
+
+# Build
+build/

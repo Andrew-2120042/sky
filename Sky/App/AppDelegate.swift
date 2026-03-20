@@ -83,6 +83,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Set up launch-at-login
         configureLaunchAtLogin()
 
+        // Check Node.js availability for headless browser
+        Task {
+            let nodePath = await MainActor.run { HeadlessBrowserService.shared.nodePath }
+            let nodeExists = FileManager.default.fileExists(atPath: nodePath)
+            print("🌐 [Browser] Node.js at \(nodePath): \(nodeExists ? "found ✓" : "not found ✗")")
+            if !nodeExists {
+                print("🌐 [Browser] Install Node.js from https://nodejs.org to enable headless browser features")
+            }
+        }
+
         print("[AppDelegate] Sky launched and ready")
     }
 
