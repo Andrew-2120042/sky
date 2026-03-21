@@ -1,6 +1,26 @@
 import Foundation
 import AppKit
 
+struct FlowStep: Equatable {
+    let id: UUID
+    let text: String
+    let status: FlowStepStatus
+}
+
+enum FlowStepStatus: Equatable {
+    case running    // ⏳
+    case success    // ✅
+    case failed     // ❌
+}
+
+enum SkillCreationStage: Equatable {
+    case waitingForDescription
+    case generating
+    case testing(goal: String)
+    case awaitingFeedback(failedStep: String, question: String)
+    case saved(skillName: String)
+}
+
 /// Represents the current UI state of the floating panel.
 enum PanelState {
     /// Waiting for user input
@@ -27,6 +47,12 @@ enum PanelState {
     case asking(question: String, candidates: [ResolvedContact], pendingIntent: ParsedIntent)
     /// Headless browser is about to take an irreversible action — needs user confirmation
     case browserConfirmation(message: String, target: String)
+    /// Live progress view for a running headless browser flow
+    case flowRunning(goal: String, steps: [FlowStep], canCancel: Bool)
+    /// Compact minimized state while flow runs in background
+    case flowMinimized(goal: String, stepCount: Int)
+    /// Skill creation wizard
+    case skillCreation(stage: SkillCreationStage)
 }
 
 /// MVVM ViewModel — owns all panel state and orchestrates parsing + routing.
@@ -52,6 +78,23 @@ final class PanelViewModel: ObservableObject {
     /// Running countdown task for destructive actions; cancelled on reset/cancel.
     private var countdownTask: Task<Void, Never>?
 
+    // MARK: - Flow progress state
+    private(set) var currentFlowGoal: String = ""
+    private(set) var flowSteps: [FlowStep] = []
+    private var isFlowHandled = false
+
+    // MARK: - Skill creation state
+    private(set) var isInSkillCreationMode: Bool = false
+    private var skillCreationDescription: String = ""
+    private var generatedSkillJSON: String = ""
+    private var skillCreationName: String = ""
+
+    // MARK: - Flow/skill notification observers
+    private var flowStartedObserver: Any?
+    private var flowStepObserver: Any?
+    private var flowFinishedObserver: Any?
+    private var skillCreationObserver: Any?
+
     // MARK: - Init / Deinit
 
     init() {
@@ -63,6 +106,42 @@ final class PanelViewModel: ObservableObject {
             let msg = note.userInfo?["message"] as? String ?? "About to take an action. Confirm?"
             let target = note.userInfo?["target"] as? String ?? ""
             MainActor.assumeIsolated { self?.state = .browserConfirmation(message: msg, target: target) }
+        }
+
+        flowStartedObserver = NotificationCenter.default.addObserver(
+            forName: Constants.NotificationName.flowStarted,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            let goal = note.userInfo?["goal"] as? String ?? ""
+            MainActor.assumeIsolated { self?.startFlow(goal: goal) }
+        }
+
+        flowStepObserver = NotificationCenter.default.addObserver(
+            forName: Constants.NotificationName.flowStep,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            let msg = note.userInfo?["message"] as? String ?? ""
+            MainActor.assumeIsolated { self?.addFlowStep(msg) }
+        }
+
+        flowFinishedObserver = NotificationCenter.default.addObserver(
+            forName: Constants.NotificationName.flowFinished,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            let success = note.userInfo?["success"] as? Bool ?? false
+            let summary = note.userInfo?["summary"] as? String ?? ""
+            MainActor.assumeIsolated { self?.finishFlow(success: success, summary: summary) }
+        }
+
+        skillCreationObserver = NotificationCenter.default.addObserver(
+            forName: Constants.NotificationName.showSkillCreation,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.enterSkillCreationMode() }
         }
     }
 
@@ -384,14 +463,17 @@ final class PanelViewModel: ObservableObject {
 
     /// Applies an array of ActionResults to panel state, building a combined success message.
     private func applyResults(_ results: [ActionResult]) {
+        inputText = ""
+        contactSuggestions = []
+        sessionHistory = []
+        guard !isFlowHandled else { return }
+        // Don't overwrite skill creation state — enterSkillCreationMode() already set it via notification
+        if case .skillCreation = state { return }
+
         let answers   = results.compactMap { if case .answer(let t)    = $0 { return t } else { return nil } }
         let successes = results.compactMap { if case .success(let m)   = $0, !m.isEmpty { return m } else { return nil } }
         let scheduled = results.compactMap { if case .scheduled(let m) = $0 { return m } else { return nil } }
         let failures  = results.compactMap { if case .failure(let m)   = $0 { return m } else { return nil } }
-
-        inputText = ""
-        contactSuggestions = []
-        sessionHistory = []
 
         // Pure answer results — show inline
         if !answers.isEmpty && successes.isEmpty && scheduled.isEmpty && failures.isEmpty {
@@ -422,6 +504,247 @@ final class PanelViewModel: ObservableObject {
                 reset()
                 NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
             }
+        }
+    }
+
+    // MARK: - Flow Progress
+
+    func startFlow(goal: String) {
+        currentFlowGoal = goal
+        flowSteps = []
+        isFlowHandled = false
+        state = .flowRunning(goal: goal, steps: [], canCancel: true)
+    }
+
+    func addFlowStep(_ text: String) {
+        // Mark previous running step as success
+        if !flowSteps.isEmpty {
+            let i = flowSteps.count - 1
+            if flowSteps[i].status == .running {
+                let prev = flowSteps[i]
+                flowSteps[i] = FlowStep(id: prev.id, text: prev.text, status: .success)
+            }
+        }
+        flowSteps.append(FlowStep(id: UUID(), text: text, status: .running))
+        state = .flowRunning(goal: currentFlowGoal, steps: flowSteps, canCancel: true)
+    }
+
+    func updateLastStep(status: FlowStepStatus, text: String? = nil) {
+        guard !flowSteps.isEmpty else { return }
+        let i = flowSteps.count - 1
+        let last = flowSteps[i]
+        flowSteps[i] = FlowStep(id: last.id, text: text ?? last.text, status: status)
+        state = .flowRunning(goal: currentFlowGoal, steps: flowSteps, canCancel: true)
+    }
+
+    func finishFlow(success: Bool, summary: String) {
+        isFlowHandled = true
+        if success {
+            updateLastStep(status: .success)
+        } else {
+            updateLastStep(status: .failed, text: summary)
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            self?.isFlowHandled = false
+            self?.state = .answer(text: summary)
+        }
+    }
+
+    func minimizeFlow() {
+        state = .flowMinimized(goal: currentFlowGoal, stepCount: flowSteps.count)
+    }
+
+    func expandFlow() {
+        state = .flowRunning(goal: currentFlowGoal, steps: flowSteps, canCancel: true)
+    }
+
+    func cancelFlow() {
+        isFlowHandled = false
+        HeadlessBrowserService.shared.stop()
+        state = .idle
+    }
+
+    // MARK: - Skill Creation
+
+    func enterSkillCreationMode() {
+        print("🎯 [SkillCreation] Entering skill creation mode")
+        isInSkillCreationMode = true
+        state = .skillCreation(stage: .waitingForDescription)
+    }
+
+    func exitSkillCreationMode() {
+        isInSkillCreationMode = false
+        cancelSkillCreation()
+    }
+
+    func submitSkillDescription(_ description: String) {
+        skillCreationDescription = description
+        generatedSkillJSON = ""
+        skillCreationName = ""
+        state = .skillCreation(stage: .generating)
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let json = try await self.generateSkillJSON(from: description)
+                self.generatedSkillJSON = json
+                if let data = json.data(using: .utf8),
+                   let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let name = parsed["name"] as? String {
+                    self.skillCreationName = name
+                }
+                self.state = .skillCreation(stage: .testing(goal: description))
+                await self.testGeneratedSkill()
+            } catch {
+                self.state = .answer(text: "Could not generate skill: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func submitSkillFeedback(_ feedback: String) {
+        state = .skillCreation(stage: .generating)
+        let failedText = flowSteps.last(where: { $0.status == .failed })?.text ?? "unknown step"
+        let currentJSON = generatedSkillJSON
+        let updatePrompt = """
+        Update this Sky skill JSON based on user feedback.
+
+        Current skill JSON:
+        \(currentJSON)
+
+        The flow failed at: \(failedText)
+
+        User says to fix it by: \(feedback)
+
+        Update the relevant page instructions to incorporate this fix.
+        Return ONLY the updated JSON. No markdown. No explanation.
+        """
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let updated = try await self.generateSkillJSON(from: updatePrompt)
+                self.generatedSkillJSON = updated
+                if let data = updated.data(using: .utf8),
+                   let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let name = parsed["name"] as? String {
+                    self.skillCreationName = name
+                }
+                self.state = .skillCreation(stage: .testing(goal: self.skillCreationDescription))
+                await self.testGeneratedSkill()
+            } catch {
+                self.state = .answer(text: "Could not update skill: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func cancelSkillCreation() {
+        isInSkillCreationMode = false
+        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            let tempURL = appSupport.appendingPathComponent("Sky/skills/_temp_skill.json")
+            try? FileManager.default.removeItem(at: tempURL)
+        }
+        state = .idle
+    }
+
+    private func generateSkillJSON(from prompt: String) async throws -> String {
+        let config = ConfigService.shared.config
+        let body: [String: Any] = [
+            "model": Constants.API.model,
+            "max_tokens": 1000,
+            "messages": [["role": "user", "content": """
+            Generate a Sky skill JSON file from this flow description.
+
+            User wants: \(prompt)
+
+            Return ONLY a valid JSON object with this exact structure:
+            {
+              "name": "short_snake_case_name",
+              "triggers": ["keyword1", "keyword2"],
+              "start_url": "https://the-website.com",
+              "overview": "One sentence description",
+              "general_hint": "Fallback step-by-step instructions if no URL matches",
+              "pages": [
+                {
+                  "url_contains": "url-pattern",
+                  "description": "Page name",
+                  "instructions": "STEP 1: Click X. STEP 2: Click Y. Use EXACT button labels."
+                }
+              ]
+            }
+
+            Rules:
+            - triggers must be 2-3 lowercase keywords the user would say
+            - instructions must use EXACT button labels described
+            - start_url is the homepage of the site
+            - pages should cover each distinct URL step in the flow
+
+            Return ONLY the JSON. No markdown. No explanation.
+            """]]
+        ]
+        guard let url = URL(string: Constants.API.anthropicBaseURL) else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(config.anthropicAPIKey, forHTTPHeaderField: "x-api-key")
+        request.setValue(Constants.API.anthropicVersion, forHTTPHeaderField: "anthropic-version")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.timeoutInterval = 30
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let content = json["content"] as? [[String: Any]],
+              let text = content.first?["text"] as? String else {
+            throw URLError(.cannotParseResponse)
+        }
+        return text
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func testGeneratedSkill() async {
+        saveSkillToDisk(json: generatedSkillJSON, temporary: true)
+        SkillsService.shared.reload()
+        startFlow(goal: skillCreationDescription)
+
+        let result = await HeadlessFlowService.shared.execute(
+            goal: skillCreationDescription,
+            contextURL: nil,
+            progressHandler: { [weak self] message in
+                self?.addFlowStep(message)
+            }
+        )
+        let succeeded = !result.hasPrefix("Browser error") &&
+                        !result.hasPrefix("Stuck") &&
+                        !result.contains("could not complete") &&
+                        !result.contains("Reached maximum")
+        if succeeded {
+            saveSkillToDisk(json: generatedSkillJSON, temporary: false)
+            SkillsService.shared.reload()
+            ActionLogService.shared.record(summary: "Skill created: \(skillCreationName)", succeeded: true)
+            state = .skillCreation(stage: .saved(skillName: skillCreationName))
+        } else {
+            let failedStep = flowSteps.last(where: { $0.status == .failed })?.text ?? "unknown step"
+            let question = "Couldn't complete: \"\(failedStep)\"\n\nWhat should I try differently?"
+            state = .skillCreation(stage: .awaitingFeedback(failedStep: failedStep, question: question))
+        }
+    }
+
+    private func saveSkillToDisk(json: String, temporary: Bool) {
+        guard let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first else { return }
+        let skillsDir = appSupport.appendingPathComponent("Sky/skills")
+        try? FileManager.default.createDirectory(at: skillsDir, withIntermediateDirectories: true)
+        let filename = temporary ? "_temp_skill.json" : "\(skillCreationName).json"
+        let fileURL = skillsDir.appendingPathComponent(filename)
+        try? json.write(to: fileURL, atomically: true, encoding: .utf8)
+        if !temporary {
+            let tempURL = skillsDir.appendingPathComponent("_temp_skill.json")
+            try? FileManager.default.removeItem(at: tempURL)
+            print("🎯 [Skills] Saved new skill: \(skillCreationName)")
         }
     }
 }

@@ -31,6 +31,8 @@ final class FloatingPanel: NSPanel {
         titleVisibility = .hidden
         isFloatingPanel = true
         ignoresMouseEvents = false
+        // Never let AppKit auto-hide on app deactivation — all dismissal goes through our code
+        hidesOnDeactivate = false
 
         // Soft, natural shadow
         if let contentView {

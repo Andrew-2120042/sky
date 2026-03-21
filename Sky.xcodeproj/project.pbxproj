@@ -34,6 +34,7 @@
 		B39E9F4CA66F5A005AECA11B /* IntentParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16A3AE515A2E8974D5B0B00 /* IntentParser.swift */; };
 		B96F2A50405EF667F70166ED /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7854C97ED739363C486A8A48 /* NotificationService.swift */; };
 		C2E28201C9E55B41866C09C3 /* SkillsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B3B6D536E27EE9D727283 /* SkillsService.swift */; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* PanelInputMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C4D5E6F7A8B9C0D1E2F3A4 /* PanelInputMemory.swift */; };
 		67D1F56A02384CEF856C08AB /* HeadlessFlowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2DA21447E54483EA783325A /* HeadlessFlowService.swift */; };
 		C52058FB15580BBEBC66BF40 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D1625C709266EB4938C3DF /* DatabaseManager.swift */; };
 		C7C5550D80805BF9F553FBFF /* ComputerUseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584BB3144C4E7A233ACE57FB /* ComputerUseService.swift */; };
@@ -95,6 +96,7 @@
 		BCF55DD01F60E5E2B086C258 /* PanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelViewController.swift; sourceTree = "<group>"; };
 		D795ED8925D69ADFCC547285 /* ContactsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsService.swift; sourceTree = "<group>"; };
 		DD5B3B6D536E27EE9D727283 /* SkillsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsService.swift; sourceTree = "<group>"; };
+		B3C4D5E6F7A8B9C0D1E2F3A4 /* PanelInputMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelInputMemory.swift; sourceTree = "<group>"; };
 		EE77558377E9DF6FB494F28F /* ParsedIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedIntent.swift; sourceTree = "<group>"; };
 		EEC01F357F8D924ABFA8F9D8 /* PermissionsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManager.swift; sourceTree = "<group>"; };
 		F09EF9EC62CC17830D799662 /* MemoryWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryWindowController.swift; sourceTree = "<group>"; };
@@ -255,6 +257,7 @@
 				EEC01F357F8D924ABFA8F9D8 /* PermissionsManager.swift */,
 				9B09CAC09E47262613E892DC /* SchedulerService.swift */,
 				DD5B3B6D536E27EE9D727283 /* SkillsService.swift */,
+				B3C4D5E6F7A8B9C0D1E2F3A4 /* PanelInputMemory.swift */,
 				422AD38AC6AF16548DB9C135 /* WorkflowService.swift */,
 			);
 			path = Services;
@@ -409,6 +412,7 @@
 				C92F1E1237FFEDD0B9E3916C /* SchedulerService.swift in Sources */,
 				DB34A9EFC97A15DD48AEBCEF /* SettingsWindowController.swift in Sources */,
 				C2E28201C9E55B41866C09C3 /* SkillsService.swift in Sources */,
+				A1B2C3D4E5F6A7B8C9D0E1F2 /* PanelInputMemory.swift in Sources */,
 				2835DCE6B91B26C658F95D41 /* WorkflowService.swift in Sources */,
 				1348FDAF83B773F5533F5D7C /* WorkflowsWindowController.swift in Sources */,
 				F0E1B56948C73BB88C5368C0 /* main.swift in Sources */,

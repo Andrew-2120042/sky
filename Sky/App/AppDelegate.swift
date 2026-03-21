@@ -72,6 +72,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.hidePanel() }
         }
 
+        // Hide panel when app loses focus (e.g. Cmd+Tab) — except during skill creation
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.hidePanel() }
+        }
+
         // Set up the menu bar icon
         menuBarController.onTogglePanel = { [weak self] in self?.togglePanel() }
         menuBarController.setup()
@@ -134,6 +143,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         existingPanel.makeKey()
         panelVC.focusInput()
 
+        // If skill creation was active, re-enter it so the panel stays in skill creation mode
+        if panelVC.viewModel.isInSkillCreationMode {
+            if case .skillCreation = panelVC.viewModel.state {
+                // Already in correct state — UI will restore via Combine subscription
+            } else {
+                panelVC.viewModel.enterSkillCreationMode()
+            }
+            // Restore what the user was typing — fires after the state change clears the field
+            if let restored = PanelInputMemory.shared.restore() {
+                DispatchQueue.main.async {
+                    self.panelVC.viewModel.inputText = restored
+                }
+            }
+        } else if case .idle = panelVC.viewModel.state,
+                  let restored = PanelInputMemory.shared.restore() {
+            // Restore typed text if panel reopens within the memory window (normal/empty state only)
+            panelVC.viewModel.inputText = restored
+        }
+
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Constants.Panel.fadeInDuration
             existingPanel.animator().alphaValue = 1
@@ -144,6 +172,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Hides the floating panel.
     private func hidePanel() {
+        // During skill creation: save whatever the user typed, then allow the hide
+        if case .skillCreation = panelVC.viewModel.state {
+            let typed = panelVC.viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !typed.isEmpty { PanelInputMemory.shared.save(typed) }
+        }
         stopOutsideClickMonitor()
         panel?.orderOut(nil)
         panelVC.viewModel.reset()
@@ -186,6 +219,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] _ in
             guard let self, let panel = self.panel, panel.isVisible else { return }
+            let state = self.panelVC.viewModel.state
+            // Skill creation must never be dismissed by clicking away
+            if case .skillCreation = state { return }
+            // Save any typed text before dismissing so it can be restored on reopen
+            let typed = self.panelVC.viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !typed.isEmpty {
+                PanelInputMemory.shared.save(typed)
+            }
             self.hidePanel()
         }
     }

@@ -57,10 +57,10 @@ enum Constants {
 
     // MARK: - Panel
     enum Panel {
-        static let width: CGFloat = 640
-        static let inputHeight: CGFloat = 56
-        static let cardHeight: CGFloat = 80
-        static let cornerRadius: CGFloat = 14
+        static let width: CGFloat = 700
+        static let inputHeight: CGFloat = 60
+        static let cardHeight: CGFloat = 100
+        static let cornerRadius: CGFloat = 20
         static let topOffsetRatio: CGFloat = 0.35
         static let fadeInDuration: TimeInterval = 0.15
         static let slideDownDuration: TimeInterval = 0.2
@@ -71,6 +71,12 @@ enum Constants {
         static let setupHeight: CGFloat = 170
         /// Max visible height for the inline answer area (scrolls if text is taller).
         static let answerHeight: CGFloat = 200
+        /// Max panel height during skill creation input — text scrolls inside beyond this.
+        static let maxSkillInputHeight: CGFloat = 300
+        static let flowGoalHeight: CGFloat = 36
+        static let flowStepRowHeight: CGFloat = 26
+        static let flowCancelRowHeight: CGFloat = 44
+        static let maxFlowStepsHeight: CGFloat = 180
     }
 
     // MARK: - Hotkey
@@ -91,6 +97,18 @@ enum Constants {
         static let memoryTitle = "Memory"
         static let settingsTitle = "Settings…"
         static let quitTitle = "Quit"
+        static let addSkillTitle = "Add Skill"
+    }
+
+    // MARK: - Notification Names
+    enum NotificationName {
+        static let hidePanel                = Foundation.Notification.Name("sky.panel.hide")
+        static let skyShowPanel             = Foundation.Notification.Name("sky.panel.show")
+        static let skyBrowserConfirmation   = Foundation.Notification.Name("sky.browser.confirmation")
+        static let flowStarted   = Foundation.Notification.Name("sky.flow.started")
+        static let flowStep      = Foundation.Notification.Name("sky.flow.step")
+        static let flowFinished  = Foundation.Notification.Name("sky.flow.finished")
+        static let showSkillCreation = Foundation.Notification.Name("sky.skillcreation.show")
     }
 
     // MARK: - Notifications
@@ -209,12 +227,6 @@ enum Constants {
     }
 
     // MARK: - App Aliases — maps casual names / common spellings to bundle IDs
-    // MARK: - Notification Names
-    enum NotificationName {
-        static let hidePanel                = Foundation.Notification.Name("sky.panel.hide")
-        static let skyShowPanel             = Foundation.Notification.Name("sky.panel.show")
-        static let skyBrowserConfirmation   = Foundation.Notification.Name("sky.browser.confirmation")
-    }
 
     static let appAliases: [String: String] = [
         "settings":              "com.apple.systempreferences",
@@ -291,6 +303,7 @@ enum Constants {
         static let testBrowser       = "test_browser"
         static let browserLogin      = "browser_login"
         static let browserLoginDone  = "browser_login_done"
+        static let createSkill       = "create_skill"
         static let unknown = "unknown"
     }
 
@@ -462,6 +475,7 @@ enum Constants {
     - test_browser: TEMPORARY TEST ACTION — use when user says "test browser" or "test headless". No params needed.
     - browser_login: Use when user says "login amazon", "login flipkart", "sign in to amazon", "authenticate amazon", or similar. Set params.body to the site name (e.g. "amazon", "flipkart").
     - browser_login_done: Use when user says "done", "logged in", "finished" after Sky asked them to log in. No params needed.
+    - create_skill: Use when user says "add a skill", "create a skill", "teach Sky to...", "add new skill", "make a skill for...", "add new automation". No params needed — Sky will guide the user through creating a new automation skill.
     - unknown: Intent is unclear or cannot be determined
 
     If the intent is unclear, set action to "unknown" and set display_summary to a clarifying question for the user.
