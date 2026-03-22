@@ -425,6 +425,29 @@ async function clickElement(target) {
       }
     } catch (e) {}
 
+    // Strategy 8: input[type="submit"] by value text (e.g. Amazon "Place your order" button)
+    try {
+      var jsSubmitClicked = await page.evaluate(function(targetText) {
+        var lower = targetText.toLowerCase();
+        var submits = Array.from(document.querySelectorAll('input[type="submit"]:not([disabled])'));
+        for (var i = 0; i < submits.length; i++) {
+          var val = (submits[i].value || submits[i].getAttribute('value') || '').toLowerCase();
+          if (val && (val.includes(lower) || lower.includes(val))) {
+            submits[i].scrollIntoView({ behavior: 'instant', block: 'center' });
+            submits[i].click();
+            return submits[i].value || targetText;
+          }
+        }
+        return null;
+      }, target);
+
+      if (jsSubmitClicked) {
+        await waitForPageSettle();
+        result(true, 'Clicked submit "' + jsSubmitClicked + '"');
+        return;
+      }
+    } catch (e) {}
+
     sendError('Could not find element to click: "' + target + '"');
   } catch (err) {
     sendError('Click failed: ' + err.message);
@@ -666,7 +689,8 @@ async function runFlow(cmd) {
 
     var amazonRules = currentUrl.includes('amazon.')
       ? '\nAMAZON CHECKOUT RULES:\n' +
-        '- On payment page: select "Cash on Delivery/Pay on Delivery" from PAYMENT OPTIONS, then click "Use this payment method"\n' +
+        '- On payment page: FIRST check if "Cash on Delivery" or "Pay on Delivery" appears in PAYMENT OPTIONS (radio buttons). If it does NOT appear there, return {"action": "failed", "reason": "Cash on Delivery is not available for this product"}\n' +
+        '- If COD IS in PAYMENT OPTIONS: select it, then click "Use this payment method"\n' +
         '- "Choose an Option" is the Net Banking bank selector — do NOT click it\n' +
         '- Never click targets containing = or % characters\n' +
         '- After "Use this payment method": you will be on order review page — click "Place Your Order" or "Place your order"\n' +
@@ -751,6 +775,9 @@ async function runFlow(cmd) {
             return;
           }
           progress('Confirmed — proceeding...');
+          // Scroll to ensure button is in view and page is ready after the confirmation wait
+          await page.evaluate(function() { window.scrollBy(0, 300); }).catch(function() {});
+          await page.waitForTimeout(800);
         }
 
         clickHistory[target] = (clickHistory[target] || 0) + 1;

@@ -8,4 +8,6 @@ enum ActionResult {
     case scheduled(String)
     /// The action produced an informational answer to display inline in the panel.
     case answer(String)
+    /// Triggers the interactive skills list view inside the panel.
+    case showSkillsList
 }

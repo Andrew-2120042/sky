@@ -21,6 +21,16 @@ enum SkillCreationStage: Equatable {
     case saved(skillName: String)
 }
 
+/// A single installed skill shown in the skills list view.
+struct SkillCard: Equatable {
+    let name: String          // e.g. "flipkart_order"
+    let displayName: String   // e.g. "Flipkart Order"
+    let overview: String
+    let triggers: String      // e.g. "flipkart, order"
+    let mode: String
+    let filePath: String
+}
+
 /// Represents the current UI state of the floating panel.
 enum PanelState {
     /// Waiting for user input
@@ -53,6 +63,10 @@ enum PanelState {
     case flowMinimized(goal: String, stepCount: Int)
     /// Skill creation wizard
     case skillCreation(stage: SkillCreationStage)
+    /// Interactive list of installed skills with edit/delete buttons
+    case skillsList(skills: [SkillCard])
+    /// Inline JSON editor for a single skill
+    case skillEdit(card: SkillCard)
 }
 
 /// MVVM ViewModel — owns all panel state and orchestrates parsing + routing.
@@ -94,6 +108,7 @@ final class PanelViewModel: ObservableObject {
     private var flowStepObserver: Any?
     private var flowFinishedObserver: Any?
     private var skillCreationObserver: Any?
+    private var editSkillObserver: Any?
 
     // MARK: - Init / Deinit
 
@@ -142,6 +157,30 @@ final class PanelViewModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.enterSkillCreationMode() }
+        }
+
+        editSkillObserver = NotificationCenter.default.addObserver(
+            forName: Constants.NotificationName.editSkillInPanel,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let filePath = note.userInfo?["filePath"] as? String else { return }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                // Build a SkillCard from the file
+                guard let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                else { return }
+                let name = json["name"] as? String ?? URL(fileURLWithPath: filePath).deletingPathExtension().lastPathComponent
+                let displayName = name.split(separator: "_").map { $0.capitalized }.joined(separator: " ")
+                let overview = json["overview"] as? String ?? ""
+                let triggers = (json["triggers"] as? [String])?.joined(separator: ", ") ?? ""
+                let mode = json["mode"] as? String ?? "background"
+                let card = SkillCard(name: name, displayName: displayName,
+                                     overview: overview, triggers: triggers,
+                                     mode: mode, filePath: filePath)
+                self.editSkill(card: card)
+            }
         }
     }
 
@@ -461,6 +500,173 @@ final class PanelViewModel: ObservableObject {
         state = .answer(text: lines.joined(separator: "\n"))
     }
 
+    // MARK: - Skill Editor Mode
+
+    enum SkillEditorMode { case json, natural }
+
+    var skillEditorMode: SkillEditorMode = .natural
+    var skillEditorFilePath: String = ""
+    var skillEditorOriginalJSON: String = ""
+
+    /// True while the panel is showing the inline skill editor.
+    var isInSkillEditorMode: Bool {
+        if case .skillEdit = state { return true }
+        return false
+    }
+
+    /// Opens the inline editor for a skill card, defaulting to natural-language view.
+    func editSkill(card: SkillCard) {
+        skillEditorMode = .natural
+        skillEditorFilePath = card.filePath
+        skillEditorOriginalJSON = (try? String(contentsOfFile: card.filePath)) ?? ""
+        state = .skillEdit(card: card)
+    }
+
+    /// Converts skill JSON to a human-readable natural-language description (synchronous).
+    func jsonToNatural(_ jsonString: String) -> String {
+        guard let data = jsonString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return jsonString
+        }
+        let overview    = json["overview"]     as? String ?? ""
+        let triggers    = (json["triggers"]    as? [String])?.joined(separator: ", ") ?? ""
+        let startUrl    = json["start_url"]    as? String ?? ""
+        let generalHint = json["general_hint"] as? String ?? ""
+        let pages       = json["pages"]        as? [[String: Any]] ?? []
+
+        var sections: [String] = []
+
+        let name = json["name"] as? String ?? ""
+        if !name.isEmpty {
+            sections.append("SKILL NAME\n\(name)")
+        }
+
+        if !overview.isEmpty {
+            sections.append("WHAT THIS SKILL DOES\n\(overview)")
+        }
+        if !triggers.isEmpty {
+            sections.append("TRIGGER BY SAYING\n\(triggers)")
+        }
+        if !startUrl.isEmpty {
+            sections.append("STARTS AT\n\(startUrl)")
+        }
+        if !pages.isEmpty {
+            var stepsLines: [String] = ["STEPS"]
+            for (i, page) in pages.enumerated() {
+                let desc         = page["description"]  as? String ?? ""
+                let instructions = page["instructions"] as? String ?? ""
+                let urlContains  = page["url_contains"] as? String ?? ""
+                if !desc.isEmpty {
+                    stepsLines.append("\n\(i + 1). \(desc)")
+                    if !urlContains.isEmpty {
+                        stepsLines.append("   URL contains: \(urlContains)")
+                    }
+                }
+                if !instructions.isEmpty {
+                    let parts = instructions
+                        .components(separatedBy: ". ")
+                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty }
+                    for part in parts {
+                        stepsLines.append("   \(part.hasSuffix(".") ? part : part + ".")")
+                    }
+                }
+            }
+            sections.append(stepsLines.joined(separator: "\n"))
+        }
+        if !generalHint.isEmpty {
+            let parts = generalHint
+                .components(separatedBy: ". ")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            var hintLines = ["GENERAL FLOW"]
+            for part in parts {
+                hintLines.append(part.hasSuffix(".") ? part : part + ".")
+            }
+            sections.append(hintLines.joined(separator: "\n"))
+        }
+        return sections.joined(separator: "\n\n")
+    }
+
+    /// Converts user-edited natural language back to skill JSON using the OpenAI API (async).
+    func naturalToJSON(_ natural: String, existingJSON: String) async throws -> String {
+        let config = ConfigService.shared.config
+        let prompt = """
+        The user has edited a Sky skill in natural language. Convert their edited description back into valid Sky skill JSON.
+
+        Original skill JSON for reference (preserve the structure):
+        \(existingJSON)
+
+        User's edited natural language description:
+        \(natural)
+
+        Return ONLY valid JSON matching the Sky skill format. No markdown. No explanation.
+        The JSON must have: name, triggers, start_url, overview, mode, requires, pages, general_hint.
+        Preserve any pages/steps the user kept. Update any they changed. Remove any they deleted.
+        """
+        let body: [String: Any] = [
+            "model": Constants.OpenAI.model,
+            "max_tokens": 1500,
+            "messages": [["role": "user", "content": prompt]]
+        ]
+        guard let url = URL(string: Constants.OpenAI.baseURL) else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(config.openaiApiKey)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.timeoutInterval = 30
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choices = json["choices"] as? [[String: Any]],
+              let message = choices.first?["message"] as? [String: Any],
+              let text = message["content"] as? String else {
+            throw URLError(.cannotParseResponse)
+        }
+        return text
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Reads the skills directory and transitions to the interactive skills list state.
+    func showSkillsList() {
+        guard let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first else {
+            state = .answer(text: "Could not access skills directory.")
+            return
+        }
+        let skillsDir = appSupport.appendingPathComponent("Sky/skills")
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: skillsDir, includingPropertiesForKeys: nil
+        )) ?? []
+        let skillFiles = files.filter {
+            $0.pathExtension == "json" && !$0.lastPathComponent.hasPrefix("_")
+        }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+
+        guard !skillFiles.isEmpty else {
+            state = .answer(text: "No skills installed yet. Say 'add a skill' to create one.")
+            return
+        }
+        var cards: [SkillCard] = []
+        for file in skillFiles {
+            guard let data = try? Data(contentsOf: file),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+            let name = json["name"] as? String ?? file.deletingPathExtension().lastPathComponent
+            let overview = json["overview"] as? String ?? ""
+            let triggers = (json["triggers"] as? [String])?.joined(separator: ", ") ?? ""
+            let mode = json["mode"] as? String ?? "background"
+            let display = name.split(separator: "_").map { $0.capitalized }.joined(separator: " ")
+            cards.append(SkillCard(name: name, displayName: display,
+                                   overview: overview, triggers: triggers,
+                                   mode: mode, filePath: file.path))
+        }
+        inputText = ""
+        state = .skillsList(skills: cards)
+    }
+
     /// Applies an array of ActionResults to panel state, building a combined success message.
     private func applyResults(_ results: [ActionResult]) {
         inputText = ""
@@ -469,6 +675,11 @@ final class PanelViewModel: ObservableObject {
         guard !isFlowHandled else { return }
         // Don't overwrite skill creation state — enterSkillCreationMode() already set it via notification
         if case .skillCreation = state { return }
+        // Handle showSkillsList trigger
+        if results.contains(where: { if case .showSkillsList = $0 { return true }; return false }) {
+            showSkillsList()
+            return
+        }
 
         let answers   = results.compactMap { if case .answer(let t)    = $0 { return t } else { return nil } }
         let successes = results.compactMap { if case .success(let m)   = $0, !m.isEmpty { return m } else { return nil } }
@@ -649,53 +860,65 @@ final class PanelViewModel: ObservableObject {
     private func generateSkillJSON(from prompt: String) async throws -> String {
         let config = ConfigService.shared.config
         let body: [String: Any] = [
-            "model": Constants.API.model,
-            "max_tokens": 1000,
+            "model": Constants.OpenAI.model,
+            "max_tokens": 1500,
             "messages": [["role": "user", "content": """
-            Generate a Sky skill JSON file from this flow description.
+            Generate a Sky skill JSON file from this user description.
 
-            User wants: \(prompt)
+            User wants to automate: \(prompt)
 
-            Return ONLY a valid JSON object with this exact structure:
+            Return ONLY a valid JSON object. No markdown. No explanation. No backticks.
+
+            Required format:
             {
-              "name": "short_snake_case_name",
-              "triggers": ["keyword1", "keyword2"],
-              "start_url": "https://the-website.com",
+              "name": "site_action",
+              "version": "1.0",
+              "triggers": ["site", "action"],
+              "start_url": "https://www.site.com",
               "overview": "One sentence description",
-              "general_hint": "Fallback step-by-step instructions if no URL matches",
+              "mode": "background",
+              "requires": ["browser"],
               "pages": [
                 {
                   "url_contains": "url-pattern",
                   "description": "Page name",
-                  "instructions": "STEP 1: Click X. STEP 2: Click Y. Use EXACT button labels."
+                  "instructions": "STEP 1: Click exact button name. STEP 2: Click exact button name."
                 }
-              ]
+              ],
+              "general_hint": "Full step by step fallback instructions"
             }
 
             Rules:
-            - triggers must be 2-3 lowercase keywords the user would say
-            - instructions must use EXACT button labels described
-            - start_url is the homepage of the site
-            - pages should cover each distinct URL step in the flow
+            - name: 2-3 words snake_case e.g. flipkart_order, swiggy_food, amazon_cancel
+            - triggers: exactly 2 SHORT words the user would say e.g. ["flipkart", "order"] or ["swiggy", "food"]
+              NEVER use the full description or full skill name as triggers
+              triggers must be individual common words that appear in natural speech
+            - start_url: the HOMEPAGE of the site mentioned.
+              Examples: flipkart → https://www.flipkart.com, amazon → https://www.amazon.in,
+              swiggy → https://www.swiggy.com, zomato → https://www.zomato.com
+              Extract the site from the user description and use its homepage
+            - pages: one entry per distinct page in the flow, matched by url_contains pattern
+            - instructions: use EXACT button labels the user mentioned, formatted as numbered steps
+            - general_hint: complete fallback with all steps in order, for when URL matching fails
 
-            Return ONLY the JSON. No markdown. No explanation.
+            Return ONLY the JSON object. Nothing else.
             """]]
         ]
-        guard let url = URL(string: Constants.API.anthropicBaseURL) else {
+        guard let url = URL(string: Constants.OpenAI.baseURL) else {
             throw URLError(.badURL)
         }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(config.anthropicAPIKey, forHTTPHeaderField: "x-api-key")
-        request.setValue(Constants.API.anthropicVersion, forHTTPHeaderField: "anthropic-version")
+        request.setValue("Bearer \(config.openaiApiKey)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.timeoutInterval = 30
 
         let (data, _) = try await URLSession.shared.data(for: request)
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let content = json["content"] as? [[String: Any]],
-              let text = content.first?["text"] as? String else {
+              let choices = json["choices"] as? [[String: Any]],
+              let message = choices.first?["message"] as? [String: Any],
+              let text = message["content"] as? String else {
             throw URLError(.cannotParseResponse)
         }
         return text
@@ -707,11 +930,24 @@ final class PanelViewModel: ObservableObject {
     private func testGeneratedSkill() async {
         saveSkillToDisk(json: generatedSkillJSON, temporary: true)
         SkillsService.shared.reload()
-        startFlow(goal: skillCreationDescription)
+
+        // Use triggers as the test goal — mirrors how a real user would invoke the skill
+        let testGoal: String
+        if let data = generatedSkillJSON.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let triggers = json["triggers"] as? [String], !triggers.isEmpty {
+            testGoal = triggers.joined(separator: " ")
+        } else {
+            testGoal = skillCreationName.replacingOccurrences(of: "_", with: " ")
+        }
+
+        let contextURL = ContextService.shared.browserURL
+        print("🎯 [SkillCreation] Testing skill with goal: '\(testGoal)' startURL: '\(contextURL ?? "none")'")
+        startFlow(goal: testGoal)
 
         let result = await HeadlessFlowService.shared.execute(
-            goal: skillCreationDescription,
-            contextURL: nil,
+            goal: testGoal,
+            contextURL: contextURL,
             progressHandler: { [weak self] message in
                 self?.addFlowStep(message)
             }

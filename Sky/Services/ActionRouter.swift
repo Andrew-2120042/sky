@@ -59,6 +59,10 @@ final class ActionRouter: Sendable {
         case Constants.ActionType.testBrowser:      result = await handleTestBrowser()
         case Constants.ActionType.browserLogin:     result = await handleBrowserLogin(params: params)
         case Constants.ActionType.browserLoginDone: result = await handleBrowserLoginDone()
+        case Constants.ActionType.createSkill:      result = await handleCreateSkill()
+        case Constants.ActionType.showSkills:       result = handleShowSkills()
+        case Constants.ActionType.deleteSkill:      result = handleDeleteSkill(params: params)
+        case Constants.ActionType.showSkillDetail:  result = handleShowSkillDetail(params: params)
         case Constants.ActionType.unknown:          result = .success("")
         default:
             LoggingService.shared.log("Unknown action type: \(action.action)", level: .warning)
@@ -657,28 +661,55 @@ final class ActionRouter: Sendable {
         let goal = params.body ?? params.query ?? ""
         guard !goal.isEmpty else { return .failure("What should I do?") }
 
-        // Use URL from parsed intent, or fall back to whatever page the user has open
         let contextURL = params.url ?? ContextService.shared.browserURL
 
         print("🌐 [ActionRouter] execute_flow via headless browser: '\(goal)' startUrl=\(contextURL ?? "none")")
 
+        // Show flow panel — keeps panel visible with live progress
         await MainActor.run {
-            NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
+            NotificationCenter.default.post(
+                name: Constants.NotificationName.flowStarted,
+                object: nil,
+                userInfo: ["goal": goal]
+            )
+            NotificationCenter.default.post(name: Constants.NotificationName.skyShowPanel, object: nil)
         }
 
         let result = await HeadlessFlowService.shared.execute(
             goal: goal,
             contextURL: contextURL,
-            progressHandler: { msg in print("🌐 [HeadlessFlow] \(msg)") }
+            progressHandler: { msg in
+                NotificationCenter.default.post(
+                    name: Constants.NotificationName.flowStep,
+                    object: nil,
+                    userInfo: ["message": msg]
+                )
+            }
         )
-
-        await MainActor.run {
-            NotificationCenter.default.post(name: Constants.NotificationName.skyShowPanel, object: nil)
-        }
 
         let succeeded = !result.hasPrefix("Browser error") && !result.contains("could not complete")
             && !result.contains("Stuck") && !result.contains("Reached maximum")
+
+        // Post finish — PanelViewModel.finishFlow sets isFlowHandled=true before applyResults is called
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: Constants.NotificationName.flowFinished,
+                object: nil,
+                userInfo: ["success": succeeded, "summary": result]
+            )
+        }
+
         return succeeded ? .answer(result) : .failure(result)
+    }
+
+    // MARK: - Create Skill
+
+    private func handleCreateSkill() async -> ActionResult {
+        await MainActor.run {
+            NotificationCenter.default.post(name: Constants.NotificationName.showSkillCreation, object: nil)
+            NotificationCenter.default.post(name: Constants.NotificationName.skyShowPanel, object: nil)
+        }
+        return .answer("")
     }
 
     // MARK: - Media Play Specific
@@ -801,6 +832,96 @@ final class ActionRouter: Sendable {
             return .answer("\(parts)\n\nSay 'allow', 'never', or 'don't allow'.")
         }
         return .answer(flowResult)
+    }
+
+    // MARK: - Show Skills
+
+    private func handleShowSkills() -> ActionResult {
+        return .showSkillsList
+    }
+
+    // MARK: - Delete / Detail Skill
+
+    private func skillsDirectory() -> URL? {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first?.appendingPathComponent("Sky/skills")
+    }
+
+    /// Fuzzy-matches a skill file by query: matches full name, partial name, or any underscore-split word.
+    private func findSkillFile(query: String) -> URL? {
+        guard let dir = skillsDirectory(),
+              let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+        else { return nil }
+        let q = query.lowercased()
+        return files
+            .filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasPrefix("_") }
+            .first { file in
+                let name = file.deletingPathExtension().lastPathComponent.lowercased()
+                return name.contains(q) || q.contains(name)
+                    || name.split(separator: "_").contains(where: { q.contains($0) })
+            }
+    }
+
+    private func handleDeleteSkill(params: IntentParams) -> ActionResult {
+        let query = (params.body ?? params.query ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return .failure("Which skill do you want to delete?") }
+
+        guard let file = findSkillFile(query: query) else {
+            return .failure("Couldn't find a skill matching '\(query)'. Say 'show skills' to see all installed skills.")
+        }
+        let name = file.deletingPathExtension().lastPathComponent
+        do {
+            try FileManager.default.removeItem(at: file)
+            DispatchQueue.main.async {
+                SkillsService.shared.reload()
+                NotificationCenter.default.post(name: Constants.NotificationName.rebuildSkillsMenu, object: nil)
+            }
+            print("🎯 [Skills] Deleted via panel: \(name)")
+            return .answer("Skill '\(name)' deleted.")
+        } catch {
+            return .failure("Could not delete skill: \(error.localizedDescription)")
+        }
+    }
+
+    private func handleShowSkillDetail(params: IntentParams) -> ActionResult {
+        let query = (params.body ?? params.query ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return handleShowSkills() }
+
+        guard let file = findSkillFile(query: query) else {
+            return .failure("Couldn't find a skill matching '\(query)'. Say 'show skills' to see all installed skills.")
+        }
+        guard let data = try? Data(contentsOf: file),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return .failure("Could not read skill file.")
+        }
+        let name      = json["name"]        as? String ?? ""
+        let overview  = json["overview"]    as? String ?? ""
+        let triggers  = (json["triggers"]   as? [String])?.joined(separator: ", ") ?? ""
+        let mode      = json["mode"]        as? String ?? "background"
+        let startUrl  = json["start_url"]   as? String ?? ""
+        let hint      = json["general_hint"] as? String ?? ""
+        let pages     = json["pages"]       as? [[String: Any]] ?? []
+
+        var lines: [String] = ["Skill: \(name) [\(mode)]"]
+        if !overview.isEmpty  { lines.append("What it does: \(overview)") }
+        if !triggers.isEmpty  { lines.append("Trigger by saying: \(triggers)") }
+        if !startUrl.isEmpty  { lines.append("Starts at: \(startUrl)") }
+        if !pages.isEmpty {
+            lines.append("")
+            lines.append("Pages covered:")
+            for page in pages {
+                let desc = page["description"] as? String ?? ""
+                let url  = page["url_contains"] as? String ?? ""
+                if !desc.isEmpty { lines.append("  • \(desc) (\(url))") }
+            }
+        }
+        if !hint.isEmpty {
+            lines.append("")
+            lines.append("Instructions: \(hint)")
+        }
+        lines.append("")
+        lines.append("Say 'delete \(name) skill' to remove it.")
+        return .answer(lines.joined(separator: "\n"))
     }
 
     // MARK: - Save Memory

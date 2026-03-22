@@ -108,7 +108,9 @@ enum Constants {
         static let flowStarted   = Foundation.Notification.Name("sky.flow.started")
         static let flowStep      = Foundation.Notification.Name("sky.flow.step")
         static let flowFinished  = Foundation.Notification.Name("sky.flow.finished")
-        static let showSkillCreation = Foundation.Notification.Name("sky.skillcreation.show")
+        static let showSkillCreation  = Foundation.Notification.Name("sky.skillcreation.show")
+        static let rebuildSkillsMenu  = Foundation.Notification.Name("sky.skills.rebuildmenu")
+        static let editSkillInPanel   = Foundation.Notification.Name("sky.skills.editinpanel")
     }
 
     // MARK: - Notifications
@@ -304,6 +306,9 @@ enum Constants {
         static let browserLogin      = "browser_login"
         static let browserLoginDone  = "browser_login_done"
         static let createSkill       = "create_skill"
+        static let showSkills        = "show_skills"
+        static let deleteSkill       = "delete_skill"
+        static let showSkillDetail   = "show_skill_detail"
         static let unknown = "unknown"
     }
 
@@ -476,6 +481,9 @@ enum Constants {
     - browser_login: Use when user says "login amazon", "login flipkart", "sign in to amazon", "authenticate amazon", or similar. Set params.body to the site name (e.g. "amazon", "flipkart").
     - browser_login_done: Use when user says "done", "logged in", "finished" after Sky asked them to log in. No params needed.
     - create_skill: Use when user says "add a skill", "create a skill", "teach Sky to...", "add new skill", "make a skill for...", "add new automation". No params needed — Sky will guide the user through creating a new automation skill.
+    - show_skills: Use when user says "show skills", "list skills", "what skills do you have", "show my skills", "installed skills". No params needed.
+    - delete_skill: Use when user says "delete [skill name] skill", "remove [skill name] skill", "delete the flipkart skill". Set params.body to the skill name mentioned.
+    - show_skill_detail: Use when user says "show me the flipkart skill", "what does the amazon skill do", "show [skill name] skill details". Set params.body to the skill name mentioned.
     - unknown: Intent is unclear or cannot be determined
 
     If the intent is unclear, set action to "unknown" and set display_summary to a clarifying question for the user.

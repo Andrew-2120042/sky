@@ -2,10 +2,12 @@ import Foundation
 
 /// Loads skills from JSON files in ~/Library/Application Support/Sky/skills/
 /// and matches them to user goals for URL-aware prompt hints.
-final class SkillsService: Sendable {
+@MainActor final class SkillsService {
 
     static let shared = SkillsService()
-    private init() {}
+    private init() {
+        reload()
+    }
 
     struct Page: Codable {
         let urlContains: String?
@@ -31,20 +33,24 @@ final class SkillsService: Sendable {
         }
     }
 
-    // Loaded once at init from disk.
-    private let skills: [Skill] = {
-        guard let dir = SkillsService.skillsDirectory else { return [] }
+    private(set) var skills: [Skill] = []
+
+    // MARK: - Lookup
+
+    /// Reloads skills from disk. Must be called on main actor.
+    func reload() {
+        guard let dir = SkillsService.skillsDirectory else { return }
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: dir, includingPropertiesForKeys: nil
-        ).filter({ $0.pathExtension == "json" }) else { return [] }
-
-        return files.compactMap { url -> Skill? in
+        ).filter({ $0.pathExtension == "json" && !$0.lastPathComponent.hasPrefix("_") }) else {
+            skills = []
+            return
+        }
+        skills = files.compactMap { url -> Skill? in
             guard let data = try? Data(contentsOf: url) else { return nil }
             return try? JSONDecoder().decode(Skill.self, from: data)
         }
-    }()
-
-    // MARK: - Lookup
+    }
 
     /// Returns a hint string for the given goal and optional current URL.
     /// Matches by goal keywords OR by URL when the browser is already on a matching site.

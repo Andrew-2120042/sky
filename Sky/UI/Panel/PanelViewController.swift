@@ -242,6 +242,110 @@ final class PanelViewController: NSViewController {
     /// Tracks current flow steps for display
     private var flowStepsData: [FlowStep] = []
 
+    // MARK: - Skills List Views
+
+    /// Scrollable container for the skills card list
+    private let skillsListScrollView: NSScrollView = {
+        let sv = NSScrollView()
+        sv.hasVerticalScroller = true
+        sv.autohidesScrollers = true
+        sv.borderType = .noBorder
+        sv.drawsBackground = false
+        sv.isHidden = true
+        return sv
+    }()
+
+    /// Stack of skill cards — one view per installed skill
+    private let skillsListStackView: NSStackView = {
+        let sv = NSStackView()
+        sv.orientation = .vertical
+        sv.alignment = .leading
+        sv.spacing = 4
+        sv.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+        return sv
+    }()
+
+    /// Height constraint for the skills list scroll view
+    private var skillsListHeightConstraint: NSLayoutConstraint?
+
+    /// Currently displayed skill cards (kept to support in-panel delete)
+    private var currentSkillCards: [SkillCard] = []
+
+    // MARK: - Skill Edit Views
+
+    /// Scroll view containing the editable JSON text for a skill
+    private let skillEditScrollView: NSScrollView = {
+        let sv = NSScrollView()
+        sv.hasVerticalScroller = true
+        sv.autohidesScrollers = true
+        sv.borderType = .noBorder
+        sv.drawsBackground = false
+        sv.isHidden = true
+        return sv
+    }()
+
+    /// Editable text view showing the skill JSON
+    private let skillEditTextView: NSTextView = {
+        let tv = NSTextView()
+        tv.isRichText = false
+        tv.isEditable = true
+        tv.isSelectable = true
+        tv.drawsBackground = false
+        tv.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        tv.textColor = .white
+        tv.isAutomaticQuoteSubstitutionEnabled = false
+        tv.isAutomaticDashSubstitutionEnabled = false
+        tv.isAutomaticTextReplacementEnabled = false
+        tv.isAutomaticSpellingCorrectionEnabled = false
+        tv.enabledTextCheckingTypes = 0
+        tv.textContainerInset = NSSize(width: 8, height: 8)
+        tv.isVerticallyResizable = true
+        tv.isHorizontallyResizable = false
+        return tv
+    }()
+
+    /// Save button for skill edit
+    private let skillEditSaveButton: NSButton = {
+        let b = NSButton(title: "Save", target: nil, action: nil)
+        b.bezelStyle = .rounded
+        b.controlSize = .regular
+        b.isHidden = true
+        return b
+    }()
+
+    /// Cancel button for skill edit (goes back to skills list)
+    private let skillEditCancelButton: NSButton = {
+        let b = NSButton(title: "Cancel", target: nil, action: nil)
+        b.bezelStyle = .rounded
+        b.controlSize = .regular
+        b.isHidden = true
+        return b
+    }()
+
+    /// Natural / JSON toggle for the skill editor
+    private let skillEditorToggle: NSSegmentedControl = {
+        let c = NSSegmentedControl(labels: ["Natural", "JSON"],
+                                   trackingMode: .selectOne, target: nil, action: nil)
+        c.selectedSegment = 0
+        c.segmentStyle = .capsule
+        c.controlSize = .mini
+        c.isHidden = true
+        return c
+    }()
+
+    /// Inline validation error shown below the editor (instead of a modal alert)
+    private let skillEditErrorLabel: NSTextField = {
+        let tf = NSTextField(labelWithString: "")
+        tf.font = .systemFont(ofSize: 11)
+        tf.textColor = .systemRed
+        tf.alignment = .center
+        tf.isHidden = true
+        return tf
+    }()
+
+    /// Stores the card being edited
+    private var editingSkillCard: SkillCard?
+
     /// Height constraint for the flow container
     private var flowContainerHeightConstraint: NSLayoutConstraint?
 
@@ -373,6 +477,13 @@ final class PanelViewController: NSViewController {
             }
         }
 
+        skillEditorToggle.target = self
+        skillEditorToggle.action = #selector(skillEditorModeChanged(_:))
+        skillEditSaveButton.target = self
+        skillEditSaveButton.action = #selector(skillEditSaveTapped)
+        skillEditCancelButton.target = self
+        skillEditCancelButton.action = #selector(skillEditCancelTapped)
+        skillEditTextView.delegate = self
         setupSaveButton.target = self
         setupSaveButton.action = #selector(setupSaveTapped)
         providerControl.target = self
@@ -424,6 +535,18 @@ final class PanelViewController: NSViewController {
         vibrancyView.addSubview(skillHeaderLabel)
         vibrancyView.addSubview(skillFeedbackLabel)
         vibrancyView.addSubview(escHintLabel)
+        skillsListScrollView.documentView = skillsListStackView
+        vibrancyView.addSubview(skillsListScrollView)
+        skillEditTextView.minSize = NSSize(width: 0, height: 0)
+        skillEditTextView.maxSize = NSSize(width: Constants.Panel.width, height: CGFloat.greatestFiniteMagnitude)
+        skillEditTextView.autoresizingMask = [.width]
+        skillEditTextView.textContainer?.widthTracksTextView = true
+        skillEditScrollView.documentView = skillEditTextView
+        vibrancyView.addSubview(skillEditorToggle)
+        vibrancyView.addSubview(skillEditScrollView)
+        vibrancyView.addSubview(skillEditErrorLabel)
+        vibrancyView.addSubview(skillEditSaveButton)
+        vibrancyView.addSubview(skillEditCancelButton)
         cardContainer.addSubview(summaryLabel)
         cardContainer.addSubview(doItButton)
         cardContainer.addSubview(cancelButton)
@@ -443,7 +566,10 @@ final class PanelViewController: NSViewController {
          setupContainer, providerControl, anthropicKeyField, openaiKeyField,
          setupSaveButton, answerScrollView,
          flowContainer, flowGoalLabel, flowStepsScrollView, flowStepsStackView, flowCancelButton, flowMinimizeButton,
-         skillBadgeLabel, skillHeaderLabel, skillFeedbackLabel, escHintLabel].forEach {
+         skillBadgeLabel, skillHeaderLabel, skillFeedbackLabel, escHintLabel,
+         skillsListScrollView, skillsListStackView,
+         skillEditScrollView, skillEditSaveButton, skillEditCancelButton,
+         skillEditorToggle, skillEditErrorLabel].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
         }
 
@@ -543,6 +669,37 @@ final class PanelViewController: NSViewController {
             answerScrollView.topAnchor.constraint(equalTo: separator.bottomAnchor),
             answerScrollView.heightAnchor.constraint(equalToConstant: Constants.Panel.answerHeight),
 
+            // Skills list scroll view — same slot as card/answer containers
+            skillsListScrollView.leadingAnchor.constraint(equalTo: vibrancyView.leadingAnchor),
+            skillsListScrollView.trailingAnchor.constraint(equalTo: vibrancyView.trailingAnchor),
+            skillsListScrollView.topAnchor.constraint(equalTo: separator.bottomAnchor),
+
+            // Stack view fills scroll view width
+            skillsListStackView.widthAnchor.constraint(equalTo: skillsListScrollView.widthAnchor),
+
+            // Skill editor toggle — centered just below separator
+            skillEditorToggle.topAnchor.constraint(equalTo: separator.bottomAnchor, constant: 8),
+            skillEditorToggle.centerXAnchor.constraint(equalTo: vibrancyView.centerXAnchor),
+            skillEditorToggle.heightAnchor.constraint(equalToConstant: 24),
+
+            // Skill edit scroll view — below toggle
+            skillEditScrollView.leadingAnchor.constraint(equalTo: vibrancyView.leadingAnchor),
+            skillEditScrollView.trailingAnchor.constraint(equalTo: vibrancyView.trailingAnchor),
+            skillEditScrollView.topAnchor.constraint(equalTo: skillEditorToggle.bottomAnchor, constant: 6),
+            skillEditScrollView.heightAnchor.constraint(equalToConstant: 220),
+
+            // Inline error label — above save buttons
+            skillEditErrorLabel.leadingAnchor.constraint(equalTo: vibrancyView.leadingAnchor, constant: 16),
+            skillEditErrorLabel.trailingAnchor.constraint(equalTo: vibrancyView.trailingAnchor, constant: -16),
+            skillEditErrorLabel.bottomAnchor.constraint(equalTo: vibrancyView.bottomAnchor, constant: -42),
+
+            // Save / Cancel buttons pinned to bottom
+            skillEditSaveButton.leadingAnchor.constraint(equalTo: vibrancyView.leadingAnchor, constant: 16),
+            skillEditSaveButton.bottomAnchor.constraint(equalTo: vibrancyView.bottomAnchor, constant: -10),
+
+            skillEditCancelButton.leadingAnchor.constraint(equalTo: skillEditSaveButton.trailingAnchor, constant: 8),
+            skillEditCancelButton.bottomAnchor.constraint(equalTo: vibrancyView.bottomAnchor, constant: -10),
+
             // Flow container — same slot as card container (below separator)
             flowContainer.leadingAnchor.constraint(equalTo: vibrancyView.leadingAnchor),
             flowContainer.trailingAnchor.constraint(equalTo: vibrancyView.trailingAnchor),
@@ -601,6 +758,10 @@ final class PanelViewController: NSViewController {
             escHintLabel.heightAnchor.constraint(equalToConstant: 24),
         ])
 
+        let skillsListH = skillsListScrollView.heightAnchor.constraint(equalToConstant: 0)
+        skillsListH.isActive = true
+        skillsListHeightConstraint = skillsListH
+
         let flowContH = flowContainer.heightAnchor.constraint(equalToConstant: 0)
         flowContH.isActive = true
         flowContainerHeightConstraint = flowContH
@@ -647,6 +808,16 @@ final class PanelViewController: NSViewController {
 
     /// Drives UI from the current PanelState.
     private func apply(state: PanelState) {
+        // Safety: hide all skill editor elements unless we're specifically in skillEdit.
+        // This prevents editor buttons/toggle from bleeding over confirmation cards or other states.
+        if case .skillEdit = state {} else {
+            skillEditScrollView.isHidden = true
+            skillEditorToggle.isHidden = true
+            skillEditErrorLabel.isHidden = true
+            skillEditSaveButton.isHidden = true
+            skillEditCancelButton.isHidden = true
+        }
+
         switch state {
         case .idle:
             showCard(false, animated: false)
@@ -658,6 +829,12 @@ final class PanelViewController: NSViewController {
             successLabel.isHidden = true
             setupContainer.isHidden = true
             answerScrollView.isHidden = true
+            skillsListScrollView.isHidden = true
+            skillEditScrollView.isHidden = true
+            skillEditorToggle.isHidden = true
+            skillEditErrorLabel.isHidden = true
+            skillEditSaveButton.isHidden = true
+            skillEditCancelButton.isHidden = true
             allowAlwaysButton.isHidden = true
             separator.isHidden = true
             flowContainer.isHidden = true
@@ -890,6 +1067,17 @@ final class PanelViewController: NSViewController {
 
         case .skillCreation(let stage):
             applySkillCreationState(stage: stage)
+
+        case .skillsList(let skills):
+            skillEditScrollView.isHidden = true
+            skillEditorToggle.isHidden = true
+            skillEditErrorLabel.isHidden = true
+            skillEditSaveButton.isHidden = true
+            skillEditCancelButton.isHidden = true
+            applySkillsListState(skills: skills)
+
+        case .skillEdit(let card):
+            applySkillEditState(card: card)
         }
     }
 
@@ -1215,6 +1403,437 @@ final class PanelViewController: NSViewController {
         }
     }
 
+    // MARK: - Skills List UI
+
+    private func applySkillsListState(skills: [SkillCard]) {
+        currentSkillCards = skills
+        // Hide everything else
+        showCard(false, animated: false)
+        spinner.stopAnimation(nil)
+        spinner.isHidden = true
+        inputScrollView.isHidden = true
+        placeholderLabel.isHidden = true
+        successLabel.isHidden = true
+        setupContainer.isHidden = true
+        answerScrollView.isHidden = true
+        flowContainer.isHidden = true
+        skillHeaderLabel.isHidden = true
+        skillBadgeLabel.isHidden = true
+        skillFeedbackLabel.isHidden = true
+        allowAlwaysButton.isHidden = true
+        separator.isHidden = false
+
+        // Build cards
+        skillsListStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        for (index, card) in skills.enumerated() {
+            skillsListStackView.addArrangedSubview(makeSkillCardView(card: card, index: index))
+        }
+
+        skillsListScrollView.isHidden = false
+        resizePanelForSkillsList(count: skills.count)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let sv = self.skillsListScrollView
+            guard let docView = sv.documentView else { return }
+            let topY = max(0, docView.frame.height - sv.contentSize.height)
+            sv.contentView.setBoundsOrigin(NSPoint(x: 0, y: topY))
+            sv.reflectScrolledClipView(sv.contentView)
+        }
+    }
+
+    private func makeSkillCardView(card: SkillCard, index: Int) -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        container.layer?.cornerRadius = 10
+
+        let nameLabel = NSTextField(labelWithString: card.displayName)
+        nameLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        nameLabel.textColor = .white
+        nameLabel.lineBreakMode = .byTruncatingTail
+
+        let subText: String
+        if !card.overview.isEmpty {
+            subText = card.overview
+        } else if !card.triggers.isEmpty {
+            subText = "Say: \(card.triggers)"
+        } else {
+            subText = card.mode
+        }
+        let subLabel = NSTextField(labelWithString: subText)
+        subLabel.font = .systemFont(ofSize: 12)
+        subLabel.textColor = NSColor.white.withAlphaComponent(0.55)
+        subLabel.lineBreakMode = .byTruncatingTail
+
+        let editBtn = NSButton(title: "", target: self, action: #selector(editSkillCardTapped(_:)))
+        let editImage = NSImage(systemSymbolName: "pencil", accessibilityDescription: "Edit")?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .regular))
+        editBtn.image = editImage
+        editBtn.bezelStyle = .rounded
+        editBtn.isBordered = false
+        editBtn.tag = index
+        editBtn.contentTintColor = NSColor.white.withAlphaComponent(0.6)
+
+        let deleteBtn = NSButton(title: "", target: self, action: #selector(deleteSkillCardTapped(_:)))
+        let trashImage = NSImage(systemSymbolName: "trash", accessibilityDescription: "Delete")?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .regular))
+        deleteBtn.image = trashImage
+        deleteBtn.bezelStyle = .rounded
+        deleteBtn.isBordered = false
+        deleteBtn.tag = index
+        deleteBtn.contentTintColor = NSColor.systemRed.withAlphaComponent(0.8)
+
+        [nameLabel, subLabel, editBtn, deleteBtn].forEach {
+            $0.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview($0)
+        }
+        NSLayoutConstraint.activate([
+            nameLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            nameLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
+            nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: editBtn.leadingAnchor, constant: -8),
+
+            subLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
+            subLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 2),
+            subLabel.trailingAnchor.constraint(lessThanOrEqualTo: editBtn.leadingAnchor, constant: -8),
+
+            deleteBtn.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+            deleteBtn.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            deleteBtn.widthAnchor.constraint(equalToConstant: 28),
+            deleteBtn.heightAnchor.constraint(equalToConstant: 28),
+
+            editBtn.trailingAnchor.constraint(equalTo: deleteBtn.leadingAnchor, constant: -4),
+            editBtn.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            editBtn.widthAnchor.constraint(equalToConstant: 28),
+            editBtn.heightAnchor.constraint(equalToConstant: 28),
+
+            container.heightAnchor.constraint(equalToConstant: 58),
+            container.widthAnchor.constraint(equalToConstant: Constants.Panel.width - 24),
+        ])
+        return container
+    }
+
+    private func resizePanelForSkillsList(count: Int) {
+        let rowH: CGFloat = 58 + 4   // card + spacing
+        let listH = min(CGFloat(count) * rowH + 16, 300)
+        skillsListHeightConstraint?.constant = listH
+        guard let panel = view.window else { return }
+        DispatchQueue.main.async {
+            let targetHeight = Constants.Panel.inputHeight + listH
+            var frame = panel.frame
+            let delta = targetHeight - frame.height
+            frame.size.height = targetHeight
+            frame.origin.y -= delta
+            panel.setFrame(frame, display: true, animate: true)
+        }
+    }
+
+    @objc private func editSkillCardTapped(_ sender: NSButton) {
+        let index = sender.tag
+        guard index < currentSkillCards.count else { return }
+        viewModel.editSkill(card: currentSkillCards[index])
+    }
+
+    // MARK: - Skill Edit
+
+    private func applySkillEditState(card: SkillCard) {
+        editingSkillCard = card
+        showCard(false, animated: false)
+        spinner.stopAnimation(nil)
+        spinner.isHidden = true
+        inputScrollView.isHidden = true
+        placeholderLabel.isHidden = true
+        successLabel.isHidden = true
+        setupContainer.isHidden = true
+        answerScrollView.isHidden = true
+        skillsListScrollView.isHidden = true
+        flowContainer.isHidden = true
+        skillHeaderLabel.isHidden = true
+        skillBadgeLabel.isHidden = true
+        skillFeedbackLabel.isHidden = true
+        allowAlwaysButton.isHidden = true
+        skillEditErrorLabel.isHidden = true
+        separator.isHidden = false
+
+        // Use saved editor content if memory has content for this exact file; otherwise load fresh.
+        // Memory check must happen HERE (inside the Combine delivery) — not in focusInput() —
+        // because applySkillEditState fires asynchronously and would overwrite any text set earlier.
+        let mem = SkillEditorMemory.shared.hasContent ? SkillEditorMemory.shared.restore() : nil
+        if let mem = mem, mem.filePath == card.filePath {
+            viewModel.skillEditorMode = mem.mode == "json" ? .json : .natural
+            skillEditorToggle.selectedSegment = mem.mode == "json" ? 1 : 0
+            skillEditTextView.font = mem.mode == "json"
+                ? .monospacedSystemFont(ofSize: 12, weight: .regular)
+                : .systemFont(ofSize: 13)
+            skillEditTextView.string = mem.text
+        } else {
+            viewModel.skillEditorMode = .natural
+            skillEditorToggle.selectedSegment = 0
+            skillEditTextView.font = .systemFont(ofSize: 13)
+            let naturalText = viewModel.jsonToNatural(viewModel.skillEditorOriginalJSON)
+            skillEditTextView.string = naturalText
+            // Seed memory immediately so reopening the panel always restores this editor.
+            SkillEditorMemory.shared.save(
+                text: naturalText,
+                filePath: viewModel.skillEditorFilePath,
+                mode: "natural",
+                originalJSON: viewModel.skillEditorOriginalJSON
+            )
+        }
+        skillEditTextView.isEditable = true
+        if viewModel.skillEditorMode == .natural { applyNaturalTextFormatting() }
+
+        skillEditorToggle.isHidden = false
+        skillEditScrollView.isHidden = false
+        skillEditSaveButton.isHidden = false
+        skillEditCancelButton.isHidden = false
+
+        // Resize: inputHeight + 8(toggle top) + 24(toggle) + 6(gap) + 220(editor) + 44(buttons)
+        guard let panel = view.window else { return }
+        DispatchQueue.main.async {
+            let targetHeight = Constants.Panel.inputHeight + 302
+            var frame = panel.frame
+            let delta = targetHeight - frame.height
+            frame.size.height = targetHeight
+            frame.origin.y -= delta
+            panel.setFrame(frame, display: true, animate: true)
+        }
+        view.window?.makeFirstResponder(skillEditTextView)
+    }
+
+    @objc private func skillEditorModeChanged(_ sender: NSSegmentedControl) {
+        let wantsNatural = sender.selectedSegment == 0
+        let currentText = skillEditTextView.string
+
+        if wantsNatural && viewModel.skillEditorMode == .json {
+            // JSON → Natural (sync)
+            viewModel.skillEditorMode = .natural
+            skillEditTextView.font = .systemFont(ofSize: 13)
+            skillEditTextView.string = viewModel.jsonToNatural(currentText)
+            applyNaturalTextFormatting()
+
+        } else if !wantsNatural && viewModel.skillEditorMode == .natural {
+            // Natural → JSON (async via API)
+            viewModel.skillEditorMode = .json
+            skillEditorToggle.isEnabled = false
+            skillEditTextView.isEditable = false
+            skillEditTextView.string = "Converting…"
+            skillEditSaveButton.isEnabled = false
+
+            Task {
+                do {
+                    let json = try await viewModel.naturalToJSON(
+                        currentText,
+                        existingJSON: viewModel.skillEditorOriginalJSON
+                    )
+                    skillEditTextView.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+                    skillEditTextView.string = json
+                } catch {
+                    // Revert to natural on failure
+                    viewModel.skillEditorMode = .natural
+                    sender.selectedSegment = 0
+                    skillEditTextView.font = .systemFont(ofSize: 13)
+                    skillEditTextView.string = currentText
+                }
+                skillEditorToggle.isEnabled = true
+                skillEditTextView.isEditable = true
+                skillEditSaveButton.isEnabled = true
+            }
+        }
+    }
+
+    @objc private func skillEditSaveTapped() {
+        guard let card = editingSkillCard else { return }
+        skillEditErrorLabel.isHidden = true
+        let currentText = skillEditTextView.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !currentText.isEmpty else { return }
+
+        if viewModel.skillEditorMode == .json {
+            // Validate JSON
+            guard let data = currentText.data(using: .utf8),
+                  (try? JSONSerialization.jsonObject(with: data)) != nil else {
+                showSkillEditError("Invalid JSON — check syntax and try again.")
+                return
+            }
+            commitSkillSave(json: currentText, card: card)
+        } else {
+            // Natural → convert to JSON first
+            skillEditSaveButton.title = "Converting…"
+            skillEditSaveButton.isEnabled = false
+            skillEditorToggle.isEnabled = false
+            skillEditTextView.isEditable = false
+
+            // Extract skill name from "SKILL NAME\n{name}" if the user edited it
+            var extractedName: String? = nil
+            let naturalLines = currentText.components(separatedBy: "\n")
+            for (i, line) in naturalLines.enumerated() {
+                if line.trimmingCharacters(in: .whitespaces) == "SKILL NAME",
+                   i + 1 < naturalLines.count {
+                    let candidate = naturalLines[i + 1].trimmingCharacters(in: .whitespaces)
+                    if !candidate.isEmpty { extractedName = candidate }
+                    break
+                }
+            }
+
+            Task {
+                do {
+                    var json = try await viewModel.naturalToJSON(
+                        currentText,
+                        existingJSON: viewModel.skillEditorOriginalJSON
+                    )
+                    // Apply the name the user typed directly — don't let the AI change it
+                    if let name = extractedName,
+                       let data = json.data(using: .utf8),
+                       var obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let updated = try? JSONSerialization.data(withJSONObject: { obj["name"] = name; return obj }(),
+                                                                  options: .prettyPrinted),
+                       let updatedStr = String(data: updated, encoding: .utf8) {
+                        json = updatedStr
+                    }
+                    commitSkillSave(json: json, card: card)
+                } catch {
+                    showSkillEditError("Conversion failed — check your connection.")
+                    skillEditSaveButton.title = "Save"
+                    skillEditSaveButton.isEnabled = true
+                    skillEditorToggle.isEnabled = true
+                    skillEditTextView.isEditable = true
+                }
+            }
+        }
+    }
+
+    private func commitSkillSave(json: String, card: SkillCard) {
+        // Validate and pretty-print JSON before writing to disk
+        guard let data = json.data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let prettyData = try? JSONSerialization.data(withJSONObject: parsed, options: .prettyPrinted),
+              let prettyJSON = String(data: prettyData, encoding: .utf8) else {
+            showSkillEditError("Invalid JSON — check syntax and try again.")
+            skillEditSaveButton.title = "Save"
+            skillEditSaveButton.isEnabled = true
+            skillEditorToggle.isEnabled = true
+            skillEditTextView.isEditable = true
+            return
+        }
+
+        // If the skill name changed, save to a new filename and remove the old one
+        let savedName = (parsed["name"] as? String ?? card.name)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let dir = URL(fileURLWithPath: card.filePath).deletingLastPathComponent()
+        let newFilePath = dir.appendingPathComponent("\(savedName).json").path
+
+        do {
+            try prettyJSON.write(toFile: newFilePath, atomically: true, encoding: .utf8)
+            if newFilePath != card.filePath {
+                try? FileManager.default.removeItem(atPath: card.filePath)
+                print("✅ [SkillEditor] Renamed \(card.name) → \(savedName)")
+            } else {
+                print("✅ [SkillEditor] Saved \(savedName)")
+            }
+            SkillsService.shared.reload()
+            NotificationCenter.default.post(name: Constants.NotificationName.rebuildSkillsMenu, object: nil)
+            SkillEditorMemory.shared.clear()
+            editingSkillCard = nil
+            showSkillSaveSuccess()
+        } catch {
+            showSkillEditError("Could not save: \(error.localizedDescription)")
+            skillEditSaveButton.title = "Save"
+            skillEditSaveButton.isEnabled = true
+            skillEditorToggle.isEnabled = true
+            skillEditTextView.isEditable = true
+        }
+    }
+
+    private func showSkillSaveSuccess() {
+        skillEditErrorLabel.textColor = .systemGreen
+        skillEditErrorLabel.stringValue = "Saved ✓"
+        skillEditErrorLabel.isHidden = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            self?.skillEditErrorLabel.isHidden = true
+            self?.viewModel.showSkillsList()
+        }
+    }
+
+    private func showSkillEditError(_ message: String) {
+        skillEditErrorLabel.textColor = .systemRed
+        skillEditErrorLabel.stringValue = message
+        skillEditErrorLabel.isHidden = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            self?.skillEditErrorLabel.isHidden = true
+        }
+    }
+
+    /// Applies bold styling to ALL-CAPS section headings in the natural-language editor.
+    /// Called once after loading or switching to natural mode — not on every keystroke.
+    private func applyNaturalTextFormatting() {
+        let text = skillEditTextView.string
+        let attributed = NSMutableAttributedString(string: text)
+        let fullRange = NSRange(location: 0, length: attributed.length)
+
+        // Base style — slightly dimmed white for body text
+        attributed.addAttribute(.font, value: NSFont.systemFont(ofSize: 13), range: fullRange)
+        attributed.addAttribute(.foregroundColor, value: NSColor.white.withAlphaComponent(0.85), range: fullRange)
+
+        // Bold bright white for ALL-CAPS heading lines
+        let lines = text.components(separatedBy: "\n")
+        var location = 0
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let isHeading = !trimmed.isEmpty &&
+                            trimmed == trimmed.uppercased() &&
+                            trimmed.count > 2 &&
+                            trimmed.count < 40 &&
+                            !trimmed.hasPrefix("URL") &&
+                            !trimmed.hasPrefix("STEP") &&
+                            !trimmed.hasPrefix("DONE") &&
+                            !trimmed.hasPrefix("NEVER") &&
+                            !trimmed.hasPrefix("DO NOT")
+            if isHeading {
+                let range = NSRange(location: location, length: line.count)
+                attributed.addAttribute(.font, value: NSFont.systemFont(ofSize: 13, weight: .semibold), range: range)
+                attributed.addAttribute(.foregroundColor, value: NSColor.white, range: range)
+            }
+            location += line.count + 1  // +1 for the newline character
+        }
+
+        skillEditTextView.textStorage?.setAttributedString(attributed)
+    }
+
+    @objc private func skillEditCancelTapped() {
+        SkillEditorMemory.shared.clear()
+        editingSkillCard = nil
+        viewModel.skillEditorMode = .natural
+        viewModel.showSkillsList()
+    }
+
+    @objc private func deleteSkillCardTapped(_ sender: NSButton) {
+        let index = sender.tag
+        guard index < currentSkillCards.count else { return }
+        let card = currentSkillCards[index]
+
+        let alert = NSAlert()
+        alert.messageText = "Delete '\(card.displayName)'?"
+        alert.informativeText = "This cannot be undone."
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons[0].hasDestructiveAction = true
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        do {
+            try FileManager.default.removeItem(atPath: card.filePath)
+            print("🎯 [Skills] Deleted via panel: \(card.name)")
+            SkillsService.shared.reload()
+            NotificationCenter.default.post(name: Constants.NotificationName.rebuildSkillsMenu, object: nil)
+            viewModel.showSkillsList()
+        } catch {
+            let failAlert = NSAlert()
+            failAlert.messageText = "Could not delete '\(card.displayName)'"
+            failAlert.informativeText = error.localizedDescription
+            failAlert.addButton(withTitle: "OK")
+            failAlert.runModal()
+        }
+    }
+
     @objc private func flowCancelTapped() {
         viewModel.cancelFlow()
         resizePanel(showCard: false)
@@ -1229,10 +1848,38 @@ final class PanelViewController: NSViewController {
 
     func focusInput() {
         lastInputHeight = 36
-        if case .awaitingAPIKey = viewModel.state {
+
+        // Restore skill editor if there is unsaved content from a previous session.
+        // Only call editSkill() here — applySkillEditState() (delivered via Combine) reads
+        // SkillEditorMemory itself and restores text/mode, avoiding the async overwrite race.
+        if SkillEditorMemory.shared.hasContent, let restored = SkillEditorMemory.shared.restore() {
+            let fileURL = URL(fileURLWithPath: restored.filePath)
+            if FileManager.default.fileExists(atPath: restored.filePath),
+               let data = try? Data(contentsOf: fileURL),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                let name = json["name"] as? String ?? fileURL.deletingPathExtension().lastPathComponent
+                let displayName = name.split(separator: "_").map { $0.capitalized }.joined(separator: " ")
+                let overview = json["overview"] as? String ?? ""
+                let triggers = (json["triggers"] as? [String])?.joined(separator: ", ") ?? ""
+                let mode     = json["mode"] as? String ?? "background"
+                let card = SkillCard(name: name, displayName: displayName,
+                                     overview: overview, triggers: triggers,
+                                     mode: mode, filePath: restored.filePath)
+                viewModel.editSkill(card: card)
+                return
+            } else {
+                SkillEditorMemory.shared.clear()
+            }
+        }
+
+        // Don't touch the main input when skill states are managing their own UI
+        switch viewModel.state {
+        case .skillEdit, .skillsList:
+            return
+        case .awaitingAPIKey:
             let isOpenAI = providerControl.selectedSegment == 1
             view.window?.makeFirstResponder(isOpenAI ? openaiKeyField : anthropicKeyField)
-        } else {
+        default:
             view.window?.makeFirstResponder(textView)
             successLabel.isHidden = true
             inputScrollView.isHidden = false
@@ -1255,6 +1902,18 @@ extension PanelViewController: NSTextViewDelegate, NSTextFieldDelegate {
     // MARK: NSTextViewDelegate — main input textView
 
     func textDidChange(_ notification: Notification) {
+        // Save to editor memory when the skill editor text view changes
+        if (notification.object as? NSTextView) === skillEditTextView {
+            if viewModel.isInSkillEditorMode {
+                SkillEditorMemory.shared.save(
+                    text: skillEditTextView.string,
+                    filePath: viewModel.skillEditorFilePath,
+                    mode: viewModel.skillEditorMode == .natural ? "natural" : "json",
+                    originalJSON: viewModel.skillEditorOriginalJSON
+                )
+            }
+            return
+        }
         updatePlaceholder()
         resizeForContent()
         handleTextDidChange(textView.string)
@@ -1270,6 +1929,18 @@ extension PanelViewController: NSTextViewDelegate, NSTextFieldDelegate {
     }
 
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        // The skill editor text view shares this delegate but must NEVER route to the main
+        // command system — only Escape is intercepted to navigate back to the skills list.
+        if textView === skillEditTextView {
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                SkillEditorMemory.shared.clear()
+                editingSkillCard = nil
+                viewModel.showSkillsList()
+                return true
+            }
+            return false
+        }
+
         // Route arrow keys to dropdown when it is visible
         if !contactDropdown.isHidden {
             if commandSelector == #selector(NSResponder.moveDown(_:)) {
@@ -1337,6 +2008,18 @@ extension PanelViewController: NSTextViewDelegate, NSTextFieldDelegate {
         }
 
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+            if case .skillEdit = viewModel.state {
+                SkillEditorMemory.shared.clear()
+                editingSkillCard = nil
+                viewModel.showSkillsList()
+                return true
+            }
+            if case .skillsList = viewModel.state {
+                viewModel.reset()
+                resizePanel(showCard: false)
+                NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
+                return true
+            }
             if viewModel.isInSkillCreationMode {
                 // Exit skill creation entirely — clears flag, sets state = .idle, applies(state:) resets text field
                 viewModel.exitSkillCreationMode()

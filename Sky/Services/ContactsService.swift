@@ -7,7 +7,7 @@ final class ContactsService: @unchecked Sendable {
     static let shared = ContactsService()
 
     private var contacts: [ResolvedContact] = []
-    private let serialQueue = DispatchQueue(label: "com.andrewwilson.Sky.contacts", qos: .userInitiated)
+    private let serialQueue = DispatchQueue(label: "com.andrewwilson.Sky.contacts", qos: .utility)
 
     private init() {}
 

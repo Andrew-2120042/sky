@@ -16,6 +16,15 @@ final class MenuBarController {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem = item
 
+        // Rebuild the menu whenever a skill is added or deleted (e.g. from ActionRouter)
+        NotificationCenter.default.addObserver(
+            forName: Constants.NotificationName.rebuildSkillsMenu,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.buildMenu() }
+        }
+
         if let button = item.button {
             let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
             button.image = NSImage(systemSymbolName: Constants.MenuBar.symbolName,
@@ -29,10 +38,11 @@ final class MenuBarController {
         buildMenu()
     }
 
-    // MARK: - Private
+    // MARK: - Menu Construction
 
     /// Constructs the dropdown menu attached to the status item.
-    private func buildMenu() {
+    /// Internal so ActionRouter can call it after deleting a skill.
+    func buildMenu() {
         let m = NSMenu()
         m.addItem(withTitle: Constants.MenuBar.openTitle,
                   action: #selector(openTapped),
@@ -49,9 +59,13 @@ final class MenuBarController {
         m.addItem(withTitle: Constants.MenuBar.memoryTitle,
                   action: #selector(memoryTapped),
                   keyEquivalent: "").target = self
+        m.addItem(withTitle: "Skills…",
+                  action: #selector(skillsTapped),
+                  keyEquivalent: "").target = self
         m.addItem(withTitle: Constants.MenuBar.settingsTitle,
                   action: #selector(settingsTapped),
                   keyEquivalent: ",").target = self
+
         m.addItem(.separator())
         m.addItem(withTitle: Constants.MenuBar.quitTitle,
                   action: #selector(NSApplication.terminate(_:)),
@@ -59,7 +73,19 @@ final class MenuBarController {
         menu = m
     }
 
-    /// Handles direct left/right click on the status item icon.
+    // MARK: - Skill Actions
+
+    @objc private func skillsTapped() {
+        if skillsController == nil {
+            skillsController = SkillsWindowController()
+        }
+        skillsController?.refresh()
+        skillsController?.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // MARK: - Status Item
+
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
         guard let event = NSApp.currentEvent else { return }
         if event.type == .rightMouseUp {
@@ -71,9 +97,7 @@ final class MenuBarController {
         }
     }
 
-    @objc private func openTapped() {
-        onTogglePanel?()
-    }
+    @objc private func openTapped() { onTogglePanel?() }
 
     @objc private func scheduledActionsTapped() {
         if scheduledActionsController == nil {
@@ -119,9 +143,12 @@ final class MenuBarController {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    // MARK: - Child Controllers
+
     private var scheduledActionsController: ScheduledActionsWindowController?
     private var recentActionsController: RecentActionsWindowController?
     private var workflowsController: WorkflowsWindowController?
     private var memoryController: MemoryWindowController?
     private var settingsController: SettingsWindowController?
+    private var skillsController: SkillsWindowController?
 }
