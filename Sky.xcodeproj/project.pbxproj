@@ -25,8 +25,11 @@
 		700CDCB50659BFFF2A914976 /* PermissionsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEC01F357F8D924ABFA8F9D8 /* PermissionsManager.swift */; };
 		70FD542658AE8A6751788914 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7076FB36E4EBBAA913261ECA /* MenuBarController.swift */; };
 		744F2FFD12CF4CDA4902591D /* HeadlessBrowserService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21D7F77CC48FF88A54910808 /* HeadlessBrowserService.swift */; };
+		76B5C70F61FC98272B88634D /* PanelInputMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C1F82E27F831ADD77C07857 /* PanelInputMemory.swift */; };
 		770A4170A97AE38836FC436C /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 017283F2475B6531D28A2F06 /* HotkeyManager.swift */; };
+		7984926A241AB54FAF0CDE86 /* SkillsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146C0820819A6B1058736009 /* SkillsWindowController.swift */; };
 		84A5202EAAAA00F0D69B3DD1 /* ContactDropdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43630CCD10BC55BC5C634E8C /* ContactDropdownView.swift */; };
+		84CF31120D219C272DEACBE6 /* SkillEditorMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C0DBB4D6C63EDD0F098EF92 /* SkillEditorMemory.swift */; };
 		8E974DCC8E755ADC0FBCEBCA /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B3ABE40CB0C92F09F43BCC /* Constants.swift */; };
 		A0D3B5F300D10F831F69B6C1 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8007B099C6F6C0A1576CDE3 /* AppDelegate.swift */; };
 		A82F2832990BFF0B3A0DB7D8 /* ActionLogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13F8E12E96C8D08DBE6A828 /* ActionLogService.swift */; };
@@ -34,20 +37,15 @@
 		B39E9F4CA66F5A005AECA11B /* IntentParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16A3AE515A2E8974D5B0B00 /* IntentParser.swift */; };
 		B96F2A50405EF667F70166ED /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7854C97ED739363C486A8A48 /* NotificationService.swift */; };
 		C2E28201C9E55B41866C09C3 /* SkillsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B3B6D536E27EE9D727283 /* SkillsService.swift */; };
-		F1E2D3C4B5A6978A0BC1D2E3 /* SkillsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B8C7D6E5F4031213A4B5C6 /* SkillsWindowController.swift */; };
-		A1B2C3D4E5F6A7B8C9D0E1F2 /* PanelInputMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C4D5E6F7A8B9C0D1E2F3A4 /* PanelInputMemory.swift */; };
-		C6D7E8F9A0B1C2D3E4F5A6B7 /* SkillEditorMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F9A0B1C2D3E4F5A6B7C8D9 /* SkillEditorMemory.swift */; };
-		67D1F56A02384CEF856C08AB /* HeadlessFlowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2DA21447E54483EA783325A /* HeadlessFlowService.swift */; };
 		C52058FB15580BBEBC66BF40 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D1625C709266EB4938C3DF /* DatabaseManager.swift */; };
 		C7C5550D80805BF9F553FBFF /* ComputerUseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584BB3144C4E7A233ACE57FB /* ComputerUseService.swift */; };
 		C8507CD3B31778564AA78369 /* ConfigService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5467356CE951CE1D666BC06F /* ConfigService.swift */; };
 		C92F1E1237FFEDD0B9E3916C /* SchedulerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B09CAC09E47262613E892DC /* SchedulerService.swift */; };
 		CCBD1D27EB934FF10D832652 /* MemoryWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F09EF9EC62CC17830D799662 /* MemoryWindowController.swift */; };
 		CD88527E7C7829CCCE8A99F3 /* ContactsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D795ED8925D69ADFCC547285 /* ContactsService.swift */; };
+		D1BAAC1BF9160F7D22D38094 /* HeadlessFlowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71A7A4250409ED9D6B1F4540 /* HeadlessFlowService.swift */; };
 		DB34A9EFC97A15DD48AEBCEF /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CBFA652A71173639DD5D3E /* SettingsWindowController.swift */; };
 		DDC8864CD435CB8B410D371F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 62803ABFF87A3903B4AB4E5D /* Assets.xcassets */; };
-		4E89617F369944608AFEAC98 /* runner.js in Resources */ = {isa = PBXBuildFile; fileRef = 58FC9BC7AB724529ADBDC34F /* runner.js */; };
-		A84B7F0CC3D94D0EB00B762E /* node_modules in Resources */ = {isa = PBXBuildFile; fileRef = 0546FBEA3C314D7782F00FC1 /* node_modules */; };
 		DDE1959338AF8D435948518E /* RecentActionsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B115EB3D6B64F85BAE8F3075 /* RecentActionsWindowController.swift */; };
 		E8BCA679B96829F72294DC5C /* PanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF55DD01F60E5E2B086C258 /* PanelViewController.swift */; };
 		F0E1B56948C73BB88C5368C0 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5596F3B867AB808651E3A535 /* main.swift */; };
@@ -59,9 +57,9 @@
 /* Begin PBXFileReference section */
 		017283F2475B6531D28A2F06 /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		12D1625C709266EB4938C3DF /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
+		146C0820819A6B1058736009 /* SkillsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsWindowController.swift; sourceTree = "<group>"; };
 		20C9ADC8CF20CFA75D9C2CA2 /* AppleScriptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptService.swift; sourceTree = "<group>"; };
 		21D7F77CC48FF88A54910808 /* HeadlessBrowserService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadlessBrowserService.swift; sourceTree = "<group>"; };
-		A2DA21447E54483EA783325A /* HeadlessFlowService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadlessFlowService.swift; sourceTree = "<group>"; };
 		27D9594C58B7DDE83D9B8C7F /* PanelViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelViewModel.swift; sourceTree = "<group>"; };
 		35111BFDD3D2E08861A13FD4 /* WorkflowsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowsWindowController.swift; sourceTree = "<group>"; };
 		36B3ABE40CB0C92F09F43BCC /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
@@ -74,18 +72,19 @@
 		584BB3144C4E7A233ACE57FB /* ComputerUseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComputerUseService.swift; sourceTree = "<group>"; };
 		59D0C686E364B5DCB5D738B8 /* ScheduledActionsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledActionsWindowController.swift; sourceTree = "<group>"; };
 		62803ABFF87A3903B4AB4E5D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		58FC9BC7AB724529ADBDC34F /* runner.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = runner.js; path = sky-browser/runner.js; sourceTree = SOURCE_ROOT; };
-		0546FBEA3C314D7782F00FC1 /* node_modules */ = {isa = PBXFileReference; lastKnownFileType = folder; name = node_modules; path = sky-browser/node_modules; sourceTree = SOURCE_ROOT; };
 		63CBFA652A71173639DD5D3E /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		7076FB36E4EBBAA913261ECA /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		71A7A4250409ED9D6B1F4540 /* HeadlessFlowService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadlessFlowService.swift; sourceTree = "<group>"; };
 		74B3053CC4A323928D59F6D5 /* ActionRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionRouter.swift; sourceTree = "<group>"; };
 		7854C97ED739363C486A8A48 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		78C2B87BC76A9E66A6991E0D /* ResolvedContact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolvedContact.swift; sourceTree = "<group>"; };
+		7C0DBB4D6C63EDD0F098EF92 /* SkillEditorMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillEditorMemory.swift; sourceTree = "<group>"; };
 		804EDFC05D47B49ECD79F1D4 /* FloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanel.swift; sourceTree = "<group>"; };
 		88AD71161047B722F365A5EC /* ContextService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextService.swift; sourceTree = "<group>"; };
 		88D12BF4DF030514C53D3F6B /* MemoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryService.swift; sourceTree = "<group>"; };
 		8D72F4F64C70F13159405E99 /* LoggingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggingService.swift; sourceTree = "<group>"; };
 		9B09CAC09E47262613E892DC /* SchedulerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulerService.swift; sourceTree = "<group>"; };
+		9C1F82E27F831ADD77C07857 /* PanelInputMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelInputMemory.swift; sourceTree = "<group>"; };
 		A13F8E12E96C8D08DBE6A828 /* ActionLogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionLogService.swift; sourceTree = "<group>"; };
 		A45162E3D8509AE5DE1BA508 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		A8007B099C6F6C0A1576CDE3 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -98,12 +97,9 @@
 		BCF55DD01F60E5E2B086C258 /* PanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelViewController.swift; sourceTree = "<group>"; };
 		D795ED8925D69ADFCC547285 /* ContactsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsService.swift; sourceTree = "<group>"; };
 		DD5B3B6D536E27EE9D727283 /* SkillsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsService.swift; sourceTree = "<group>"; };
-		B3C4D5E6F7A8B9C0D1E2F3A4 /* PanelInputMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelInputMemory.swift; sourceTree = "<group>"; };
-		E8F9A0B1C2D3E4F5A6B7C8D9 /* SkillEditorMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillEditorMemory.swift; sourceTree = "<group>"; };
 		EE77558377E9DF6FB494F28F /* ParsedIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedIntent.swift; sourceTree = "<group>"; };
 		EEC01F357F8D924ABFA8F9D8 /* PermissionsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManager.swift; sourceTree = "<group>"; };
 		F09EF9EC62CC17830D799662 /* MemoryWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryWindowController.swift; sourceTree = "<group>"; };
-		A9B8C7D6E5F4031213A4B5C6 /* SkillsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsWindowController.swift; sourceTree = "<group>"; };
 		F3F78D093E81369642E65B0A /* CalculatorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorService.swift; sourceTree = "<group>"; };
 		F76751E8449763CDE0636C75 /* Sky.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sky.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -135,6 +131,14 @@
 				B115EB3D6B64F85BAE8F3075 /* RecentActionsWindowController.swift */,
 			);
 			path = RecentActions;
+			sourceTree = "<group>";
+		};
+		313BEA0793F4BC6EB3DD9453 /* Skills */ = {
+			isa = PBXGroup;
+			children = (
+				146C0820819A6B1058736009 /* SkillsWindowController.swift */,
+			);
+			path = Skills;
 			sourceTree = "<group>";
 		};
 		38809A8FA5BABADEEA5B3C91 /* Settings */ = {
@@ -252,17 +256,17 @@
 				88AD71161047B722F365A5EC /* ContextService.swift */,
 				40B907D4D9BDC39BDF320B28 /* FlowExecutionService.swift */,
 				21D7F77CC48FF88A54910808 /* HeadlessBrowserService.swift */,
-				A2DA21447E54483EA783325A /* HeadlessFlowService.swift */,
+				71A7A4250409ED9D6B1F4540 /* HeadlessFlowService.swift */,
 				017283F2475B6531D28A2F06 /* HotkeyManager.swift */,
 				B16A3AE515A2E8974D5B0B00 /* IntentParser.swift */,
 				8D72F4F64C70F13159405E99 /* LoggingService.swift */,
 				88D12BF4DF030514C53D3F6B /* MemoryService.swift */,
 				7854C97ED739363C486A8A48 /* NotificationService.swift */,
+				9C1F82E27F831ADD77C07857 /* PanelInputMemory.swift */,
 				EEC01F357F8D924ABFA8F9D8 /* PermissionsManager.swift */,
 				9B09CAC09E47262613E892DC /* SchedulerService.swift */,
+				7C0DBB4D6C63EDD0F098EF92 /* SkillEditorMemory.swift */,
 				DD5B3B6D536E27EE9D727283 /* SkillsService.swift */,
-				B3C4D5E6F7A8B9C0D1E2F3A4 /* PanelInputMemory.swift */,
-				E8F9A0B1C2D3E4F5A6B7C8D9 /* SkillEditorMemory.swift */,
 				422AD38AC6AF16548DB9C135 /* WorkflowService.swift */,
 			);
 			path = Services;
@@ -272,8 +276,6 @@
 			isa = PBXGroup;
 			children = (
 				62803ABFF87A3903B4AB4E5D /* Assets.xcassets */,
-				58FC9BC7AB724529ADBDC34F /* runner.js */,
-				0546FBEA3C314D7782F00FC1 /* node_modules */,
 				B6C797873397A5943C10B634 /* Info.plist */,
 				4D4C526491806806D6B1B34F /* Sky.entitlements */,
 			);
@@ -289,7 +291,7 @@
 				2DD37435FF0023522CB7D221 /* RecentActions */,
 				B7843E6AAAAAC7D91ABD2C57 /* ScheduledActions */,
 				38809A8FA5BABADEEA5B3C91 /* Settings */,
-				D4E5F6A7B8C9D0E1F2A3B4C5 /* Skills */,
+				313BEA0793F4BC6EB3DD9453 /* Skills */,
 				571CCF2E1F95DC0300D0F9D6 /* Workflows */,
 			);
 			path = UI;
@@ -301,14 +303,6 @@
 				F09EF9EC62CC17830D799662 /* MemoryWindowController.swift */,
 			);
 			path = Memory;
-			sourceTree = "<group>";
-		};
-		D4E5F6A7B8C9D0E1F2A3B4C5 /* Skills */ = {
-			isa = PBXGroup;
-			children = (
-				A9B8C7D6E5F4031213A4B5C6 /* SkillsWindowController.swift */,
-			);
-			path = Skills;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -377,8 +371,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				DDC8864CD435CB8B410D371F /* Assets.xcassets in Resources */,
-				4E89617F369944608AFEAC98 /* runner.js in Resources */,
-				A84B7F0CC3D94D0EB00B762E /* node_modules in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -407,7 +399,7 @@
 				180A1D1DBB9BB8956B207622 /* FloatingPanel.swift in Sources */,
 				0C08B9C5DB15FE9F49FE69EA /* FlowExecutionService.swift in Sources */,
 				744F2FFD12CF4CDA4902591D /* HeadlessBrowserService.swift in Sources */,
-				67D1F56A02384CEF856C08AB /* HeadlessFlowService.swift in Sources */,
+				D1BAAC1BF9160F7D22D38094 /* HeadlessFlowService.swift in Sources */,
 				770A4170A97AE38836FC436C /* HotkeyManager.swift in Sources */,
 				B39E9F4CA66F5A005AECA11B /* IntentParser.swift in Sources */,
 				1020D048538DC1CB14818DF6 /* LoggingService.swift in Sources */,
@@ -415,6 +407,7 @@
 				CCBD1D27EB934FF10D832652 /* MemoryWindowController.swift in Sources */,
 				70FD542658AE8A6751788914 /* MenuBarController.swift in Sources */,
 				B96F2A50405EF667F70166ED /* NotificationService.swift in Sources */,
+				76B5C70F61FC98272B88634D /* PanelInputMemory.swift in Sources */,
 				E8BCA679B96829F72294DC5C /* PanelViewController.swift in Sources */,
 				049D08B5114BA6E626822873 /* PanelViewModel.swift in Sources */,
 				0BB4803A23C85039AD831661 /* ParsedIntent.swift in Sources */,
@@ -425,10 +418,9 @@
 				5F63F71C004B118220BAD56B /* ScheduledActionsWindowController.swift in Sources */,
 				C92F1E1237FFEDD0B9E3916C /* SchedulerService.swift in Sources */,
 				DB34A9EFC97A15DD48AEBCEF /* SettingsWindowController.swift in Sources */,
+				84CF31120D219C272DEACBE6 /* SkillEditorMemory.swift in Sources */,
 				C2E28201C9E55B41866C09C3 /* SkillsService.swift in Sources */,
-				F1E2D3C4B5A6978A0BC1D2E3 /* SkillsWindowController.swift in Sources */,
-				A1B2C3D4E5F6A7B8C9D0E1F2 /* PanelInputMemory.swift in Sources */,
-				C6D7E8F9A0B1C2D3E4F5A6B7 /* SkillEditorMemory.swift in Sources */,
+				7984926A241AB54FAF0CDE86 /* SkillsWindowController.swift in Sources */,
 				2835DCE6B91B26C658F95D41 /* WorkflowService.swift in Sources */,
 				1348FDAF83B773F5533F5D7C /* WorkflowsWindowController.swift in Sources */,
 				F0E1B56948C73BB88C5368C0 /* main.swift in Sources */,

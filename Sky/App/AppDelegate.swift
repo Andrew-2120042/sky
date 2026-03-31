@@ -72,14 +72,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.hidePanel() }
         }
 
-        // Hide panel when app loses focus (e.g. Cmd+Tab) — except during skill creation
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.hidePanel() }
-        }
 
         // Set up the menu bar icon
         menuBarController.onTogglePanel = { [weak self] in self?.togglePanel() }

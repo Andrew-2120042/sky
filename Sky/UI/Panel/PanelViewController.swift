@@ -1296,7 +1296,7 @@ final class PanelViewController: NSViewController {
     }
 
     private func restoreNormalWindowBehavior() {
-        // hidesOnDeactivate stays false — AppDelegate's didResignActiveNotification handles normal dismiss.
+        // hidesOnDeactivate stays false — dismissal is handled manually via click/hotkey only.
     }
 
     // MARK: - Skill Creation UI

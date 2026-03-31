@@ -1,7 +1,7 @@
 import Foundation
 
 /// Writes timestamped log lines to ~/Library/Logs/Sky/sky.log.
-final class LoggingService {
+final class LoggingService: @unchecked Sendable {
 
     /// Severity levels for log entries.
     enum LogLevel: String {
@@ -11,7 +11,7 @@ final class LoggingService {
     }
 
     /// Shared singleton; safe to call from any thread.
-    nonisolated(unsafe) static let shared = LoggingService()
+    static let shared = LoggingService()
 
     private let queue = DispatchQueue(label: "com.andrewwilson.Sky.logger")
     private var fileHandle: FileHandle?
