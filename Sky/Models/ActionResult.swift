@@ -10,4 +10,6 @@ enum ActionResult {
     case answer(String)
     /// Triggers the interactive skills list view inside the panel.
     case showSkillsList
+    /// Tone-rewritten mail ready for the user to review and edit before sending.
+    case mailPreview(subject: String, body: String, to: String, toEmail: String)
 }

@@ -67,6 +67,8 @@ enum PanelState {
     case skillsList(skills: [SkillCard])
     /// Inline JSON editor for a single skill
     case skillEdit(card: SkillCard)
+    /// Tone-rewritten mail — user can edit subject/body before sending
+    case mailPreview(subject: String, body: String, to: String, toEmail: String)
 }
 
 /// MVVM ViewModel — owns all panel state and orchestrates parsing + routing.
@@ -500,6 +502,28 @@ final class PanelViewModel: ObservableObject {
         state = .answer(text: lines.joined(separator: "\n"))
     }
 
+    // MARK: - Pending Mail Preview State
+
+    private(set) var pendingMailTo: String = ""
+    private(set) var pendingMailToEmail: String = ""
+
+    /// Called when the user taps Send in the mail preview — sends with potentially edited subject/body.
+    func sendPendingMail(subject: String, body: String) {
+        let toEmail = pendingMailToEmail
+        state = .loading
+        Task {
+            let result = await router.sendMailDirectly(to: toEmail, subject: subject, body: body)
+            applyResults([result])
+        }
+    }
+
+    /// Cancels the mail preview and returns to idle without dismissing the panel.
+    func cancelMailPreview() {
+        pendingMailTo = ""
+        pendingMailToEmail = ""
+        state = .idle
+    }
+
     // MARK: - Skill Editor Mode
 
     enum SkillEditorMode { case json, natural }
@@ -678,6 +702,17 @@ final class PanelViewModel: ObservableObject {
         // Handle showSkillsList trigger
         if results.contains(where: { if case .showSkillsList = $0 { return true }; return false }) {
             showSkillsList()
+            return
+        }
+
+        // Handle mail preview — show editable draft before sending
+        if let preview = results.compactMap({ (r: ActionResult) -> (String, String, String, String)? in
+            if case .mailPreview(let s, let b, let t, let te) = r { return (s, b, t, te) }
+            return nil
+        }).first {
+            pendingMailTo = preview.2
+            pendingMailToEmail = preview.3
+            state = .mailPreview(subject: preview.0, body: preview.1, to: preview.2, toEmail: preview.3)
             return
         }
 

@@ -73,6 +73,8 @@ enum Constants {
         static let answerHeight: CGFloat = 200
         /// Max panel height during skill creation input — text scrolls inside beyond this.
         static let maxSkillInputHeight: CGFloat = 300
+        /// Height of the mail preview area (below the input row).
+        static let mailPreviewHeight: CGFloat = 320
         static let flowGoalHeight: CGFloat = 36
         static let flowStepRowHeight: CGFloat = 26
         static let flowCancelRowHeight: CGFloat = 44
@@ -440,7 +442,8 @@ enum Constants {
             "confidence": "<high | medium | low>",
             "memory_category": "<alias | fact | preference | null>",
             "memory_key": "<alias key for save_memory category alias, e.g. 'mum', null if not>",
-            "memory_value": "<value to save: alias target, fact text, or preference text, null if not>"
+            "memory_value": "<value to save: alias target, fact text, or preference text, null if not>",
+            "tone": "<formal | casual | friendly | apologetic | professional | brief | null>"
           },
           "display_summary": "<short one-liner describing this specific action>"
         }
@@ -496,6 +499,32 @@ enum Constants {
 
     MEETING PREFERENCES: When the user says "remember to always join meetings with camera off/on" or "always join with mic muted/on" — use save_memory with memory_category="preference", memory_key="meeting_camera" (or "meeting_mic"), memory_value="off" (or "on").
 
+    MAIL TONE: When the user sends a mail and includes a tone indicator after a slash or the word "in" — e.g. "tell john im gonna be late / formal" or "email sarah saying thanks in friendly tone" — extract the tone and set params.tone to one of: formal, casual, friendly, apologetic, professional, brief. If no tone is mentioned, params.tone is null and the message is sent as-is. When tone is set, include it in display_summary: e.g. "Send formal email to John about being late".
+
     RECENT ACTIONS: The [Recent actions:] block shows what Sky just did. Use it to resolve "that", "it", "the same person", "reschedule that" — these refer to things in the recent actions list.
+
+    CONTEXT AND "THIS" RESOLUTION:
+    The user message includes context blocks showing what's currently on screen. Use them as follows:
+    - [This (selected text): ...] — the user selected this text. When they say "this", "it", "the selected text" they mean this content.
+    - [This (current browser page): ...] — the current webpage content. "Summarize this", "what's this about", "explain this" refers to this page.
+    - [This (current file): ...] — the content of the open file. "Summarize this file", "explain this code" refers to this.
+    - [This (clipboard): ...] — what the user last copied. "Send this", "share this", "email this" refers to this content.
+    - [This (current page URL): ...] — page content was not yet loaded; use the URL as context.
+    - [Browser: ...] — current page URL and title.
+    - [Native app context: ...] — content from the currently open native app.
+      For Mail: the selected/open email with sender, subject, body.
+      For Messages: the active conversation.
+      For Notes: the open note content.
+      For Calendar: the selected event.
+      Use this to understand "this email", "this message", "this note", "reply to this", "this event".
+      For "reply to this" in Mail — use the From address as the recipient and the Subject as context for the reply.
+      For "reply to this message" in Messages — send to the conversation contact.
+    - [Open file: ...] — path of the currently open file.
+
+    Priority: always use the [This (...)] block to resolve "this", "it", "here", "the page", "the file".
+    For "summarize this" with page content — summarize the [This] content inline as an answer, never open a browser.
+    For "send this to @name" — use the [This] content as the message body.
+    For "save this" or "add this to notes" — save the [This] content.
+    For "what's this about" — describe the [This] content inline.
     """
 }

@@ -23,9 +23,11 @@ struct IntentParams: Codable {
     let memoryValue: String?
     /// Step descriptions for computer_use multi-step sequences.
     let steps: [String]?
+    /// Requested mail tone: formal | casual | friendly | apologetic | professional | brief
+    let tone: String?
 
     enum CodingKeys: String, CodingKey {
-        case to, body, subject, datetime, recurrence, url, query, confidence
+        case to, body, subject, datetime, recurrence, url, query, confidence, tone
         case recurrenceDetail = "recurrence_detail"
         case appName          = "app_name"
         case durationMinutes  = "duration_minutes"
@@ -42,14 +44,14 @@ struct IntentParams: Codable {
          url: String? = nil, query: String? = nil, appName: String? = nil,
          durationMinutes: Int? = nil, confidence: String? = nil, workflowSteps: [String]? = nil,
          memoryCategory: String? = nil, memoryKey: String? = nil, memoryValue: String? = nil,
-         steps: [String]? = nil) {
+         steps: [String]? = nil, tone: String? = nil) {
         self.to = to; self.body = body; self.subject = subject
         self.datetime = datetime; self.recurrence = recurrence; self.recurrenceDetail = recurrenceDetail
         self.url = url; self.query = query; self.appName = appName
         self.durationMinutes = durationMinutes; self.confidence = confidence
         self.workflowSteps = workflowSteps
         self.memoryCategory = memoryCategory; self.memoryKey = memoryKey; self.memoryValue = memoryValue
-        self.steps = steps
+        self.steps = steps; self.tone = tone
     }
 
     /// Returns a copy of these params with `to` replaced by `newTo`.
@@ -61,7 +63,7 @@ struct IntentParams: Codable {
             durationMinutes: durationMinutes, confidence: confidence,
             workflowSteps: workflowSteps,
             memoryCategory: memoryCategory, memoryKey: memoryKey, memoryValue: memoryValue,
-            steps: steps
+            steps: steps, tone: tone
         )
     }
 }

@@ -50,7 +50,7 @@ final class ActionRouter: Sendable {
         case Constants.ActionType.computerUse:      result = await handleComputerUse(params: params)
         case Constants.ActionType.executeFlow:       result = await handleExecuteFlow(params: params)
         case Constants.ActionType.mediaPlaySpecific: result = await handleMediaPlaySpecific(params: params)
-        case Constants.ActionType.answer:           result = .answer(action.params.body ?? action.displaySummary)
+        case Constants.ActionType.answer:           result = await handleAnswer(params: params, fallback: action.displaySummary)
         case Constants.ActionType.readCalendarToday: result = await handleReadCalendarToday()
         case Constants.ActionType.createWorkflow:   result = await handleCreateWorkflow(params: action.params)
         case Constants.ActionType.saveMemory:       result = handleSaveMemory(params: action.params)
@@ -300,17 +300,177 @@ final class ActionRouter: Sendable {
         guard !recipient.isEmpty else {
             return .failure("No recipient — who should I send the mail to?")
         }
-        let subject = appleScriptEscape(params.subject ?? "(no subject)")
-        let body = appleScriptEscape(params.body ?? "")
-        let script = String(format: Constants.AppleScript.sendMail, subject, body, recipient)
+
+        var finalBody    = params.body ?? ""
+        var finalSubject = params.subject ?? ""
+
+        print("✉️ [Mail] tone=\(params.tone ?? "nil") body=\(params.body ?? "nil") subject=\(params.subject ?? "nil")")
+
+        // Apply tone rewrite — show editable preview instead of sending immediately
+        if let tone = params.tone, !tone.isEmpty {
+            LoggingService.shared.log("[Mail] Rewriting with tone: \(tone)")
+            let rewritten = await rewriteWithTone(
+                messageBody: finalBody,
+                subject: finalSubject.isEmpty ? nil : finalSubject,
+                recipientName: params.to,
+                tone: tone
+            )
+            finalSubject = rewritten.subject
+            finalBody    = rewritten.body
+            let toDisplay = params.to ?? recipient
+            return .mailPreview(subject: finalSubject, body: finalBody, to: toDisplay, toEmail: recipient)
+        }
+
+        return await sendMailDirectly(to: recipient, subject: finalSubject, body: finalBody, trackContact: params.to)
+    }
+
+    /// Rewrites an email body in the requested tone via the Anthropic API.
+    /// Returns the original subject/body unchanged if the API call fails for any reason.
+    private func rewriteWithTone(
+        messageBody: String,
+        subject: String?,
+        recipientName: String?,
+        tone: String
+    ) async -> (subject: String, body: String) {
+        let toneInstructions: [String: String] = [
+            "formal":       "Write in formal professional English. Use proper salutation (Dear [Name],), formal language throughout, and a professional sign-off (Yours sincerely / Best regards).",
+            "casual":       "Write in a friendly casual tone. Use a relaxed greeting (Hey [Name] / Hi [Name]) and sign off naturally (Cheers / Thanks).",
+            "friendly":     "Write in a warm and friendly tone. Be personable and positive. Use a friendly greeting and warm sign-off.",
+            "apologetic":   "Write in a sincere apologetic tone. Acknowledge the situation, express genuine regret, and be humble throughout.",
+            "professional": "Write in a crisp professional tone. Be direct and clear. Use a standard greeting and professional sign-off.",
+            "brief":        "Write in an extremely brief and direct tone. Two to three sentences maximum. No pleasantries. Just the core message."
+        ]
+        let instruction = toneInstructions[tone.lowercased()] ?? "Write in a \(tone) tone."
+
+        // Recipient: use display name portion only (strip email domain if present)
+        let recipientDisplay: String = {
+            let raw = recipientName ?? "the recipient"
+            if let atIdx = raw.firstIndex(of: "@") {
+                return String(raw[..<atIdx])
+            }
+            return raw
+        }()
+
+        // Sender name: check memory facts for "my name is …", fall back to system name
+        let mem = await MainActor.run { MemoryService.shared.readMemory() }
+        var senderName = NSFullUserName()
+        for fact in mem.facts {
+            let lower = fact.lowercased()
+            if lower.hasPrefix("my name is ") {
+                senderName = String(fact.dropFirst("my name is ".count)).trimmingCharacters(in: .whitespaces)
+                break
+            }
+        }
+
+        let prompt = """
+        Rewrite this email message in the requested tone. Return ONLY a JSON object with no markdown:
+        {"subject": "email subject line", "body": "full email body including greeting and sign-off"}
+
+        Recipient name: \(recipientDisplay)
+        Sender name: \(senderName)
+        Original message: \(messageBody)
+        Requested tone: \(tone)
+        Tone instruction: \(instruction)
+
+        Rules:
+        - Generate an appropriate subject line based on the message content
+        - Address the recipient by their first name in the greeting
+        - Sign off with the sender's name
+        - Write the full message body in the requested tone
+        - Keep the core meaning of the original message
+        - Return only raw JSON, no backticks, no explanation
+        """
 
         do {
+            let config    = await MainActor.run { ConfigService.shared.config }
+            let useOpenAI = config.aiProvider == "openai"
+            let apiKey    = useOpenAI
+                ? config.openaiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                : config.anthropicAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("✉️ [MailTone] provider=\(config.aiProvider) keyEmpty=\(apiKey.isEmpty)")
+            guard !apiKey.isEmpty else {
+                print("✉️ [MailTone] No API key — sending original")
+                return (subject ?? "No subject", messageBody)
+            }
+
+            var request: URLRequest
+            if useOpenAI {
+                let bodyDict: [String: Any] = [
+                    "model": Constants.OpenAI.model,
+                    "max_tokens": 500,
+                    "response_format": ["type": "json_object"],
+                    "messages": [["role": "user", "content": prompt]]
+                ]
+                request = URLRequest(url: URL(string: Constants.OpenAI.baseURL)!)
+                request.httpMethod = "POST"
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+                request.httpBody = try JSONSerialization.data(withJSONObject: bodyDict)
+            } else {
+                let bodyDict: [String: Any] = [
+                    "model": Constants.API.model,
+                    "max_tokens": 500,
+                    "messages": [["role": "user", "content": prompt]]
+                ]
+                request = URLRequest(url: URL(string: Constants.API.anthropicBaseURL)!)
+                request.httpMethod = "POST"
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+                request.setValue(Constants.API.anthropicVersion, forHTTPHeaderField: "anthropic-version")
+                request.httpBody = try JSONSerialization.data(withJSONObject: bodyDict)
+            }
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+                let msg = String(data: data, encoding: .utf8) ?? "unknown"
+                print("✉️ [MailTone] API error \(http.statusCode): \(msg)")
+                return (subject ?? "No subject", messageBody)
+            }
+
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let text: String
+            if useOpenAI {
+                text = ((json?["choices"] as? [[String: Any]])?.first?["message"] as? [String: Any])?["content"] as? String ?? ""
+            } else {
+                text = (json?["content"] as? [[String: Any]])?.first?["text"] as? String ?? ""
+            }
+            print("✉️ [MailTone] Raw API response: \(text.prefix(200))")
+
+            let clean = text
+                .replacingOccurrences(of: "```json", with: "")
+                .replacingOccurrences(of: "```", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !clean.isEmpty,
+                  let responseData  = clean.data(using: .utf8),
+                  let parsed        = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+                  let rewrittenBody = parsed["body"] as? String,
+                  !rewrittenBody.isEmpty else {
+                print("✉️ [MailTone] Could not parse rewrite response (clean='\(clean.prefix(100))')")
+                return (subject ?? "No subject", messageBody)
+            }
+            let rewrittenSubject = parsed["subject"] as? String ?? subject ?? "No subject"
+            print("✉️ [MailTone] Parsed subject=\(rewrittenSubject) body=\(rewrittenBody.prefix(100))")
+            return (rewrittenSubject, rewrittenBody)
+
+        } catch {
+            print("✉️ [MailTone] Error: \(error)")
+            return (subject ?? "No subject", messageBody)
+        }
+    }
+
+    /// Sends a mail directly via AppleScript — used by the mail preview after user edits.
+    func sendMailDirectly(to email: String, subject: String, body: String, trackContact: String? = nil) async -> ActionResult {
+        let sub    = appleScriptEscape(subject.isEmpty ? "(no subject)" : subject)
+        let bod    = appleScriptEscape(body)
+        let script = String(format: Constants.AppleScript.sendMail, sub, bod, email)
+        do {
             try await AppleScriptService.shared.execute(script)
-            LoggingService.shared.log("Mail sent to \(recipient)")
-            if let name = params.to { MemoryService.shared.incrementContact(name) }
+            LoggingService.shared.log("Mail sent to \(email)")
+            if let name = trackContact { MemoryService.shared.incrementContact(name) }
             return .success(Constants.Success.mailSent)
         } catch {
-            LoggingService.shared.log(error: error, context: "handleSendMail")
+            LoggingService.shared.log(error: error, context: "sendMailDirectly")
             return .failure("Mail failed: \(error.localizedDescription)")
         }
     }
@@ -1097,5 +1257,21 @@ final class ActionRouter: Sendable {
                 cont.resume(returning: "")
             }
         }
+    }
+
+    // MARK: - Answer
+
+    /// Handles the `answer` action type.
+    /// If the answer body references a page URL placeholder (content wasn't ready at parse time),
+    /// fetches the full page content now and returns a richer inline answer.
+    private func handleAnswer(params: IntentParams, fallback: String) async -> ActionResult {
+        if let body = params.body, body.contains("[This (current page URL):") {
+            await ContextService.shared.fetchPageContentIfNeeded()
+            if let pageContent = ContextService.shared.browserPageContent {
+                let summary = "Page content loaded. Summarizing: \(String(pageContent.prefix(500)))..."
+                return .answer(summary)
+            }
+        }
+        return .answer(params.body ?? fallback)
     }
 }

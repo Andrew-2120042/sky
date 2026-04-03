@@ -26,40 +26,114 @@ final class IntentParser: Sendable {
 
     // MARK: - Context Building
 
-    /// Builds the full user message with date/time context and clipboard/app/selection blocks prepended.
+    /// Builds the full user message with rich context prepended.
+    /// "This" is resolved using a priority hierarchy: selected text > page content > file content > clipboard.
     private func buildFullInput(userInput: String) async -> String {
-        // Date context — gives the model an exact anchor for relative time resolution
+        // Read all context on the main actor at once
+        let (sel, pageContent, fileContent, filePath, clip, bURL, bTitle, app, native) = await MainActor.run {
+            let ctx = ContextService.shared
+            return (ctx.selectedText,
+                    ctx.browserPageContent,
+                    ctx.currentFileContent,
+                    ctx.currentFilePath,
+                    ctx.clipboardText,
+                    ctx.browserURL,
+                    ctx.browserPageTitle,
+                    ctx.frontmostApp,
+                    ctx.nativeAppContext)
+        }
+
+        // Determine what "this" refers to — priority order:
+        // 1. Selected text (user explicitly selected something)
+        // 2. Browser page content (if browser is frontmost and content is available)
+        // 3. File content (if a text file is open)
+        // 4. Clipboard — ONLY if command explicitly references "this", "it", "that I copied" etc.
+        //    Clipboard is always sent as a plain [Clipboard:] block so the model can use it for
+        //    name resolution etc., but we don't want stale clipboard content hijacking unrelated commands.
+        var thisContext: String?
+        var thisSource = ""
+
+        let lower = userInput.lowercased()
+        let refersToThis = ["this", " it ", "that i copied", "what i copied",
+                            "the link", "the url", "the text", "the image",
+                            "forward this", "send this", "share this", "email this",
+                            "text this", "save this", "add this", "use this"].contains(where: { lower.contains($0) })
+
+        if let selected = sel, !selected.isEmpty {
+            thisContext = selected
+            thisSource = "selected text"
+        } else if let page = pageContent, !page.isEmpty {
+            thisContext = page
+            thisSource = "current browser page"
+        } else if let file = fileContent, !file.isEmpty {
+            thisContext = file
+            thisSource = "current file"
+        } else if refersToThis, let clipboard = clip, !clipboard.isEmpty {
+            thisContext = clipboard
+            thisSource = "clipboard"
+        }
+
+        // Detect if the command likely needs page/file content
+        let needsContent = ["summarize", "summary", "explain", "what is this", "what's this",
+            "make notes", "key points", "bullet points", "tldr", "what does this",
+            "translate this", "simplify this", "what's on this", "describe this",
+            "save this", "send this", "share this", "email this", "text this"
+        ].contains(where: { lower.contains($0) })
+
+        // If command needs content and we don't have it yet, trigger a background page fetch.
+        // Use the URL as an immediate fallback — ActionRouter will retry once content arrives.
+        if needsContent && thisContext == nil && bURL != nil {
+            Task {
+                await ContextService.shared.fetchPageContentIfNeeded()
+            }
+            if let url = bURL {
+                thisContext = url
+                thisSource = "current page URL"
+            }
+        }
+
+        // Build context lines
+        var contextLines: [String] = []
+
+        // Date context
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMMM d, yyyy 'at' h:mm a"
         formatter.timeZone = TimeZone.current
-        let nowString = formatter.string(from: Date())
         let tzID = TimeZone.current.identifier
-        let contextPrefix = "[Context: Today is \(nowString), timezone \(tzID). Resolve ALL relative times — 'tomorrow', '9am', 'next Monday', 'in 2 hours' — against this exact date and time. Return datetime as ISO8601 with the correct timezone offset. Never default to a past date or wrong year.]"
+        contextLines.append("[Context: Today is \(formatter.string(from: Date())), timezone \(tzID). Resolve ALL relative times — 'tomorrow', '9am', 'next Monday', 'in 2 hours' — against this exact date and time. Return datetime as ISO8601 with the correct timezone offset. Never default to a past date or wrong year.]")
 
-        // Clipboard / active-app / selected-text / browser context
-        let (clip, app, sel, bURL, bTitle) = await MainActor.run {
-            (ContextService.shared.clipboardText,
-             ContextService.shared.frontmostApp,
-             ContextService.shared.selectedText,
-             ContextService.shared.browserURL,
-             ContextService.shared.browserPageTitle)
+        // "This" context — what the user is referring to with "this", "it", "here"
+        if let thisCtx = thisContext {
+            contextLines.append("[This (\(thisSource)):\n\(String(thisCtx.prefix(1500)))]")
         }
-        var contextLines: [String] = []
-        if let clip, !clip.isEmpty {
-            contextLines.append("[Clipboard: \(String(clip.prefix(200)))]")
-        }
-        if let app {
-            contextLines.append("[Active app: \(app)]")
-        }
-        if let sel, !sel.isEmpty {
-            contextLines.append("[Selected text: \(String(sel.prefix(200)))]")
-        }
-        if let bURL, !bURL.isEmpty {
+
+        // Browser context (URL + title — always include when available)
+        if let url = bURL {
             let titlePart = bTitle.map { " — \"\($0)\"" } ?? ""
-            contextLines.append("[Browser: \(app ?? "Browser")\(titlePart) — \(bURL)]")
+            contextLines.append("[Browser: \(app ?? "Browser")\(titlePart) — \(url)]")
         }
 
-        // Memory context — inject aliases, facts, and preferences so the model can use them
+        // Native app context (Mail / Messages / Notes / Calendar)
+        if let native = native, !native.isEmpty {
+            contextLines.append("[Native app context:\n\(native)]")
+        }
+
+        // File context (path only — content already in "This" block above)
+        if let path = filePath {
+            contextLines.append("[Open file: \(path)]")
+        }
+
+        // Clipboard (only if not already used as "this")
+        if thisSource != "clipboard", let clipboard = clip, !clipboard.isEmpty {
+            contextLines.append("[Clipboard: \(String(clipboard.prefix(300)))]")
+        }
+
+        // Active app
+        if let appName = app {
+            contextLines.append("[Active app: \(appName)]")
+        }
+
+        // Memory context — aliases, facts, preferences
         let mem = MemoryService.shared.readMemory()
         if !mem.aliases.isEmpty {
             let list = mem.aliases.map { "\($0.key) → \($0.value)" }.joined(separator: ", ")
@@ -72,15 +146,15 @@ final class IntentParser: Sendable {
             contextLines.append("[Memory — Preferences: \(mem.preferences.joined(separator: "; "))]")
         }
 
-        // Recent actions context — helps Claude resolve "that", "it", "the same person"
+        // Recent actions — helps resolve "that", "it", "the same person"
         let recentActions = ActionLogService.shared.recentActions.prefix(3)
         if !recentActions.isEmpty {
             let actionsText = recentActions.map { "- \($0.summary)" }.joined(separator: "\n")
             contextLines.append("[Recent actions:\n\(actionsText)]")
         }
 
-        let contextBlock = contextLines.isEmpty ? "" : "\n" + contextLines.joined(separator: "\n")
-        return "\(contextPrefix)\(contextBlock)\n\(userInput)"
+        let contextBlock = contextLines.joined(separator: "\n")
+        return "\(contextBlock)\n\(userInput)"
     }
 
     // MARK: - Anthropic

@@ -394,6 +394,101 @@ final class PanelViewController: NSViewController {
         return tv
     }()
 
+    // MARK: - Mail Preview Views
+
+    /// Container for the editable mail preview (shown after tone rewrite)
+    private let mailPreviewContainer: NSView = {
+        let v = NSView()
+        v.wantsLayer = true
+        v.isHidden = true
+        return v
+    }()
+
+    /// "To: <name>" — not editable
+    private let mailPreviewToLabel: NSTextField = {
+        let tf = NSTextField(labelWithString: "")
+        tf.font = .systemFont(ofSize: 13, weight: .regular)
+        tf.textColor = NSColor.secondaryLabelColor
+        tf.lineBreakMode = .byTruncatingTail
+        return tf
+    }()
+
+    /// Thin hairline below the To label
+    private let mailPreviewTopSeparator: NSView = {
+        let v = NSView()
+        v.wantsLayer = true
+        v.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        return v
+    }()
+
+    /// Editable subject line
+    private let mailPreviewSubjectField: NSTextField = {
+        let tf = NSTextField()
+        tf.font = .systemFont(ofSize: 13, weight: .medium)
+        tf.textColor = .white
+        tf.backgroundColor = .clear
+        tf.isBezeled = false
+        tf.drawsBackground = false
+        tf.isEditable = true
+        tf.isSelectable = true
+        tf.placeholderString = "Subject"
+        return tf
+    }()
+
+    /// Thin hairline below the subject field
+    private let mailPreviewBottomSeparator: NSView = {
+        let v = NSView()
+        v.wantsLayer = true
+        v.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        return v
+    }()
+
+    /// Scroll view for editable body
+    private let mailPreviewBodyScrollView: NSScrollView = {
+        let sv = NSScrollView()
+        sv.hasVerticalScroller = true
+        sv.autohidesScrollers = true
+        sv.borderType = .noBorder
+        sv.drawsBackground = false
+        return sv
+    }()
+
+    /// Editable body text view
+    private let mailPreviewBodyTextView: NSTextView = {
+        let tv = NSTextView()
+        tv.isRichText = false
+        tv.isEditable = true
+        tv.isSelectable = true
+        tv.drawsBackground = false
+        tv.font = .systemFont(ofSize: 13, weight: .regular)
+        tv.textColor = .white
+        tv.isAutomaticQuoteSubstitutionEnabled = false
+        tv.isAutomaticDashSubstitutionEnabled = false
+        tv.isAutomaticTextReplacementEnabled = false
+        tv.isAutomaticSpellingCorrectionEnabled = false
+        tv.enabledTextCheckingTypes = 0
+        tv.textContainerInset = NSSize(width: 8, height: 8)
+        tv.isVerticallyResizable = true
+        tv.isHorizontallyResizable = false
+        return tv
+    }()
+
+    /// Send button in mail preview
+    private let mailPreviewSendButton: NSButton = {
+        let b = NSButton(title: "Send", target: nil, action: nil)
+        b.bezelStyle = .rounded
+        b.controlSize = .regular
+        return b
+    }()
+
+    /// Cancel button in mail preview
+    private let mailPreviewCancelButton: NSButton = {
+        let b = NSButton(title: "Cancel", target: nil, action: nil)
+        b.bezelStyle = .rounded
+        b.controlSize = .regular
+        return b
+    }()
+
     // MARK: - API Key Setup Views (shown on first launch / awaitingAPIKey state)
 
     private let setupContainer: NSView = {
@@ -477,6 +572,12 @@ final class PanelViewController: NSViewController {
             }
         }
 
+        mailPreviewSendButton.target = self
+        mailPreviewSendButton.action = #selector(mailPreviewSendTapped)
+        mailPreviewCancelButton.target = self
+        mailPreviewCancelButton.action = #selector(mailPreviewCancelTapped)
+        mailPreviewBodyTextView.delegate = self
+
         skillEditorToggle.target = self
         skillEditorToggle.action = #selector(skillEditorModeChanged(_:))
         skillEditSaveButton.target = self
@@ -537,6 +638,21 @@ final class PanelViewController: NSViewController {
         vibrancyView.addSubview(escHintLabel)
         skillsListScrollView.documentView = skillsListStackView
         vibrancyView.addSubview(skillsListScrollView)
+        // Mail preview
+        mailPreviewBodyTextView.minSize = NSSize(width: 0, height: 0)
+        mailPreviewBodyTextView.maxSize = NSSize(width: Constants.Panel.width, height: CGFloat.greatestFiniteMagnitude)
+        mailPreviewBodyTextView.autoresizingMask = [.width]
+        mailPreviewBodyTextView.textContainer?.widthTracksTextView = true
+        mailPreviewBodyScrollView.documentView = mailPreviewBodyTextView
+        vibrancyView.addSubview(mailPreviewContainer)
+        mailPreviewContainer.addSubview(mailPreviewToLabel)
+        mailPreviewContainer.addSubview(mailPreviewTopSeparator)
+        mailPreviewContainer.addSubview(mailPreviewSubjectField)
+        mailPreviewContainer.addSubview(mailPreviewBottomSeparator)
+        mailPreviewContainer.addSubview(mailPreviewBodyScrollView)
+        mailPreviewContainer.addSubview(mailPreviewSendButton)
+        mailPreviewContainer.addSubview(mailPreviewCancelButton)
+
         skillEditTextView.minSize = NSSize(width: 0, height: 0)
         skillEditTextView.maxSize = NSSize(width: Constants.Panel.width, height: CGFloat.greatestFiniteMagnitude)
         skillEditTextView.autoresizingMask = [.width]
@@ -569,7 +685,10 @@ final class PanelViewController: NSViewController {
          skillBadgeLabel, skillHeaderLabel, skillFeedbackLabel, escHintLabel,
          skillsListScrollView, skillsListStackView,
          skillEditScrollView, skillEditSaveButton, skillEditCancelButton,
-         skillEditorToggle, skillEditErrorLabel].forEach {
+         skillEditorToggle, skillEditErrorLabel,
+         mailPreviewContainer, mailPreviewToLabel, mailPreviewTopSeparator, mailPreviewSubjectField,
+         mailPreviewBottomSeparator, mailPreviewBodyScrollView, mailPreviewSendButton,
+         mailPreviewCancelButton].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
         }
 
@@ -735,6 +854,48 @@ final class PanelViewController: NSViewController {
             skillFeedbackLabel.trailingAnchor.constraint(equalTo: vibrancyView.trailingAnchor, constant: -20),
             skillFeedbackLabel.topAnchor.constraint(equalTo: separator.bottomAnchor, constant: 12),
             skillFeedbackLabel.widthAnchor.constraint(equalToConstant: Constants.Panel.width - 40),
+
+            // Mail preview container — same slot as card/answer containers (below separator)
+            mailPreviewContainer.leadingAnchor.constraint(equalTo: vibrancyView.leadingAnchor),
+            mailPreviewContainer.trailingAnchor.constraint(equalTo: vibrancyView.trailingAnchor),
+            mailPreviewContainer.topAnchor.constraint(equalTo: separator.bottomAnchor),
+            mailPreviewContainer.heightAnchor.constraint(equalToConstant: Constants.Panel.mailPreviewHeight),
+
+            // To label
+            mailPreviewToLabel.leadingAnchor.constraint(equalTo: mailPreviewContainer.leadingAnchor, constant: 20),
+            mailPreviewToLabel.trailingAnchor.constraint(equalTo: mailPreviewContainer.trailingAnchor, constant: -20),
+            mailPreviewToLabel.topAnchor.constraint(equalTo: mailPreviewContainer.topAnchor, constant: 10),
+
+            // Hairline below To label
+            mailPreviewTopSeparator.leadingAnchor.constraint(equalTo: mailPreviewContainer.leadingAnchor, constant: 16),
+            mailPreviewTopSeparator.trailingAnchor.constraint(equalTo: mailPreviewContainer.trailingAnchor, constant: -16),
+            mailPreviewTopSeparator.topAnchor.constraint(equalTo: mailPreviewToLabel.bottomAnchor, constant: 8),
+            mailPreviewTopSeparator.heightAnchor.constraint(equalToConstant: 0.5),
+
+            // Subject field
+            mailPreviewSubjectField.leadingAnchor.constraint(equalTo: mailPreviewContainer.leadingAnchor, constant: 20),
+            mailPreviewSubjectField.trailingAnchor.constraint(equalTo: mailPreviewContainer.trailingAnchor, constant: -20),
+            mailPreviewSubjectField.topAnchor.constraint(equalTo: mailPreviewTopSeparator.bottomAnchor, constant: 8),
+            mailPreviewSubjectField.heightAnchor.constraint(equalToConstant: 20),
+
+            // Hairline below subject
+            mailPreviewBottomSeparator.leadingAnchor.constraint(equalTo: mailPreviewContainer.leadingAnchor, constant: 16),
+            mailPreviewBottomSeparator.trailingAnchor.constraint(equalTo: mailPreviewContainer.trailingAnchor, constant: -16),
+            mailPreviewBottomSeparator.topAnchor.constraint(equalTo: mailPreviewSubjectField.bottomAnchor, constant: 8),
+            mailPreviewBottomSeparator.heightAnchor.constraint(equalToConstant: 0.5),
+
+            // Body scroll view
+            mailPreviewBodyScrollView.leadingAnchor.constraint(equalTo: mailPreviewContainer.leadingAnchor),
+            mailPreviewBodyScrollView.trailingAnchor.constraint(equalTo: mailPreviewContainer.trailingAnchor),
+            mailPreviewBodyScrollView.topAnchor.constraint(equalTo: mailPreviewBottomSeparator.bottomAnchor, constant: 4),
+            mailPreviewBodyScrollView.bottomAnchor.constraint(equalTo: mailPreviewSendButton.topAnchor, constant: -8),
+
+            // Send / Cancel buttons
+            mailPreviewSendButton.trailingAnchor.constraint(equalTo: mailPreviewContainer.trailingAnchor, constant: -20),
+            mailPreviewSendButton.bottomAnchor.constraint(equalTo: mailPreviewContainer.bottomAnchor, constant: -10),
+
+            mailPreviewCancelButton.trailingAnchor.constraint(equalTo: mailPreviewSendButton.leadingAnchor, constant: -8),
+            mailPreviewCancelButton.bottomAnchor.constraint(equalTo: mailPreviewContainer.bottomAnchor, constant: -10),
         ])
 
         // Input scroll view mode constraints — swapped between normal and skill creation
@@ -816,6 +977,11 @@ final class PanelViewController: NSViewController {
             skillEditErrorLabel.isHidden = true
             skillEditSaveButton.isHidden = true
             skillEditCancelButton.isHidden = true
+        }
+
+        // Safety: hide mail preview unless specifically in mailPreview state.
+        if case .mailPreview = state {} else {
+            mailPreviewContainer.isHidden = true
         }
 
         switch state {
@@ -1076,6 +1242,27 @@ final class PanelViewController: NSViewController {
             skillEditCancelButton.isHidden = true
             applySkillsListState(skills: skills)
 
+        case .mailPreview(let subject, let body, let to, _):
+            spinner.stopAnimation(nil)
+            spinner.isHidden = true
+            inputScrollView.isHidden = true
+            placeholderLabel.isHidden = true
+            successLabel.isHidden = true
+            setupContainer.isHidden = true
+            answerScrollView.isHidden = true
+            cardContainer.isHidden = true
+            flowContainer.isHidden = true
+            skillsListScrollView.isHidden = true
+            skillHeaderLabel.isHidden = true
+            skillBadgeLabel.isHidden = true
+            skillFeedbackLabel.isHidden = true
+            separator.isHidden = false
+            mailPreviewToLabel.stringValue = "To: \(to)"
+            mailPreviewSubjectField.stringValue = subject
+            mailPreviewBodyTextView.string = body
+            mailPreviewContainer.isHidden = false
+            resizePanelForMailPreview()
+
         case .skillEdit(let card):
             applySkillEditState(card: card)
         }
@@ -1205,6 +1392,18 @@ final class PanelViewController: NSViewController {
         resizePanel(showCard: false)
     }
 
+    @objc private func mailPreviewSendTapped() {
+        viewModel.sendPendingMail(
+            subject: mailPreviewSubjectField.stringValue,
+            body: mailPreviewBodyTextView.string
+        )
+    }
+
+    @objc private func mailPreviewCancelTapped() {
+        viewModel.cancelMailPreview()
+        resizePanel(showCard: false)
+    }
+
     @objc private func providerChanged() {
         let isOpenAI = providerControl.selectedSegment == 1
         anthropicKeyField.isHidden = isOpenAI
@@ -1213,6 +1412,18 @@ final class PanelViewController: NSViewController {
             view.window?.makeFirstResponder(openaiKeyField)
         } else {
             view.window?.makeFirstResponder(anthropicKeyField)
+        }
+    }
+
+    private func resizePanelForMailPreview() {
+        guard let panel = view.window else { return }
+        DispatchQueue.main.async {
+            let targetHeight = Constants.Panel.inputHeight + Constants.Panel.mailPreviewHeight
+            var frame = panel.frame
+            let delta = targetHeight - frame.height
+            frame.size.height = targetHeight
+            frame.origin.y -= delta
+            panel.setFrame(frame, display: true, animate: true)
         }
     }
 
@@ -1929,6 +2140,16 @@ extension PanelViewController: NSTextViewDelegate, NSTextFieldDelegate {
     }
 
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        // Mail preview body text view — only intercept Escape to cancel the preview.
+        if textView === mailPreviewBodyTextView {
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                viewModel.cancelMailPreview()
+                resizePanel(showCard: false)
+                return true
+            }
+            return false
+        }
+
         // The skill editor text view shares this delegate but must NEVER route to the main
         // command system — only Escape is intercepted to navigate back to the skills list.
         if textView === skillEditTextView {
@@ -2008,6 +2229,11 @@ extension PanelViewController: NSTextViewDelegate, NSTextFieldDelegate {
         }
 
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+            if case .mailPreview = viewModel.state {
+                viewModel.cancelMailPreview()
+                resizePanel(showCard: false)
+                return true
+            }
             if case .skillEdit = viewModel.state {
                 SkillEditorMemory.shared.clear()
                 editingSkillCard = nil
