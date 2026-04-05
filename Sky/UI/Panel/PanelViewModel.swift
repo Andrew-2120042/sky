@@ -69,6 +69,10 @@ enum PanelState {
     case skillEdit(card: SkillCard)
     /// Tone-rewritten mail — user can edit subject/body before sending
     case mailPreview(subject: String, body: String, to: String, toEmail: String)
+    /// Persistent chat mode — full conversation history with Sky
+    case chat
+    /// Screenshot search grid — triggered by ⌘F
+    case screenshotSearch
 }
 
 /// MVVM ViewModel — owns all panel state and orchestrates parsing + routing.
@@ -93,6 +97,52 @@ final class PanelViewModel: ObservableObject {
 
     /// Running countdown task for destructive actions; cancelled on reset/cancel.
     private var countdownTask: Task<Void, Never>?
+
+    // MARK: - State persistence across dismissals
+
+    private var lastPersistedState: PanelState? = nil
+    private var lastPersistedInput: String = ""
+    private var preservedAt: Date? = nil
+    private var userExplicitlyCleared = false
+
+    /// Call before hiding the panel — saves the current state so it can be restored on reopen.
+    func preserveCurrentState() {
+        switch state {
+        case .idle, .loading:
+            break
+        default:
+            lastPersistedState = state
+            lastPersistedInput = inputText
+            preservedAt = Date()
+        }
+    }
+
+    /// Call after showing the panel — restores the saved state if within the 15-minute window.
+    /// Returns true if state was restored, false if nothing to restore or window expired.
+    @discardableResult
+    func restoreStateIfNeeded() -> Bool {
+        if userExplicitlyCleared {
+            userExplicitlyCleared = false
+            return false
+        }
+        if let preservedAt, Date().timeIntervalSince(preservedAt) > 900 {
+            clearPersistedState()
+            return false
+        }
+        guard let saved = lastPersistedState else { return false }
+        state = saved
+        inputText = lastPersistedInput
+        return true
+    }
+
+    /// Call after a terminal action (send, cancel, success) — clears the persisted state.
+    /// Setting userExplicitlyCleared prevents restore on next panel open.
+    func clearPersistedState() {
+        lastPersistedState = nil
+        lastPersistedInput = ""
+        preservedAt = nil
+        userExplicitlyCleared = true
+    }
 
     // MARK: - Flow progress state
     private(set) var currentFlowGoal: String = ""
@@ -359,6 +409,7 @@ final class PanelViewModel: ObservableObject {
     func cancel() {
         countdownTask?.cancel()
         countdownTask = nil
+        clearPersistedState()
         reset()
     }
 
@@ -407,6 +458,8 @@ final class PanelViewModel: ObservableObject {
         inputText = ""
         contactSuggestions = []
         sessionHistory = []
+        pendingMailTo = ""
+        pendingMailToEmail = ""
         state = .idle
     }
 
@@ -509,6 +562,7 @@ final class PanelViewModel: ObservableObject {
 
     /// Called when the user taps Send in the mail preview — sends with potentially edited subject/body.
     func sendPendingMail(subject: String, body: String) {
+        clearPersistedState()
         let toEmail = pendingMailToEmail
         state = .loading
         Task {
@@ -519,8 +573,27 @@ final class PanelViewModel: ObservableObject {
 
     /// Cancels the mail preview and returns to idle without dismissing the panel.
     func cancelMailPreview() {
+        clearPersistedState()
         pendingMailTo = ""
         pendingMailToEmail = ""
+        state = .idle
+    }
+
+    // MARK: - Chat Mode
+
+    func enterChatMode() {
+        state = .chat
+    }
+
+    func exitChatMode() {
+        state = .idle
+    }
+
+    func enterScreenshotSearch() {
+        state = .screenshotSearch
+    }
+
+    func exitScreenshotSearch() {
         state = .idle
     }
 
@@ -655,6 +728,10 @@ final class PanelViewModel: ObservableObject {
     }
 
     /// Reads the skills directory and transitions to the interactive skills list state.
+    func showSetup() {
+        state = .awaitingAPIKey
+    }
+
     func showSkillsList() {
         guard let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
@@ -693,6 +770,7 @@ final class PanelViewModel: ObservableObject {
 
     /// Applies an array of ActionResults to panel state, building a combined success message.
     private func applyResults(_ results: [ActionResult]) {
+        let originalInput = inputText
         inputText = ""
         contactSuggestions = []
         sessionHistory = []
@@ -702,6 +780,14 @@ final class PanelViewModel: ObservableObject {
         // Handle showSkillsList trigger
         if results.contains(where: { if case .showSkillsList = $0 { return true }; return false }) {
             showSkillsList()
+            return
+        }
+
+        // Handle clarifying question — ask user for missing info
+        // Seed sessionHistory so the follow-up parse has context about what was originally asked
+        if let question = results.compactMap({ if case .clarifying(let q) = $0 { return q } else { return nil } }).first {
+            sessionHistory.append((userMessage: originalInput, assistantResponse: question))
+            state = .clarifying(question: question)
             return
         }
 
@@ -739,6 +825,7 @@ final class PanelViewModel: ObservableObject {
             parts.append("⚠️ \(failures.joined(separator: ", "))")
         }
         state = .success(parts.joined(separator: " · "))
+        clearPersistedState()
         scheduleDismiss()
     }
 

@@ -94,6 +94,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Start screenshot indexing in background after app has fully launched
+        DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 5.0) {
+            ScreenshotIndexService.shared.start()
+        }
+
         print("[AppDelegate] Sky launched and ready")
     }
 
@@ -135,6 +140,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         existingPanel.makeKey()
         panelVC.focusInput()
 
+        // Restore the previous panel state (confirmation card, answer, etc.) if within 15 minutes
+        let didRestoreState = panelVC.viewModel.restoreStateIfNeeded()
+
         // If skill creation was active, re-enter it so the panel stays in skill creation mode
         if panelVC.viewModel.isInSkillCreationMode {
             if case .skillCreation = panelVC.viewModel.state {
@@ -148,7 +156,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.panelVC.viewModel.inputText = restored
                 }
             }
-        } else if case .idle = panelVC.viewModel.state,
+        } else if !didRestoreState,
+                  case .idle = panelVC.viewModel.state,
                   let restored = PanelInputMemory.shared.restore() {
             // Restore typed text if panel reopens within the memory window (normal/empty state only)
             panelVC.viewModel.inputText = restored
@@ -169,6 +178,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let typed = panelVC.viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !typed.isEmpty { PanelInputMemory.shared.save(typed) }
         }
+        panelVC.panelWillHide()
+        panelVC.viewModel.preserveCurrentState()
         stopOutsideClickMonitor()
         panel?.orderOut(nil)
         panelVC.viewModel.reset()

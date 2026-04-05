@@ -239,6 +239,18 @@ final class PanelViewController: NSViewController {
     /// Tracks the last rendered input height — used by resizeForContent() to compute panel deltas
     private var lastInputHeight: CGFloat = 36
 
+    /// Embedded screenshot search VC — present while in .screenshotSearch state
+    private var screenshotSearchVC: ScreenshotSearchViewController?
+    private var cmdFMonitor: Any?
+    private var lastUserCommand: String = ""
+    private var lastSkyResponse: String = ""
+
+    // Left panel
+    private var leftPanelVC: SkyLeftPanelViewController?
+    private var leftPanelVisible = false
+    private var logoButton: NSButton!
+    private var leftPanelClickMonitor: Any?
+
     /// Tracks current flow steps for display
     private var flowStepsData: [FlowStep] = []
 
@@ -392,6 +404,99 @@ final class PanelViewController: NSViewController {
         tv.isVerticallyResizable = true
         tv.isHorizontallyResizable = false
         return tv
+    }()
+
+    // MARK: - Chat Views
+
+    private let chatContainer: NSView = {
+        let v = NSView()
+        v.wantsLayer = true
+        v.isHidden = true
+        return v
+    }()
+
+    private let chatScrollView: NSScrollView = {
+        let sv = NSScrollView()
+        sv.hasVerticalScroller = true
+        sv.autohidesScrollers = true
+        sv.drawsBackground = false
+        sv.borderType = .noBorder
+        return sv
+    }()
+
+    private let chatStackView: NSStackView = {
+        let sv = NSStackView()
+        sv.orientation = .vertical
+        sv.alignment = .leading
+        sv.spacing = 8
+        sv.edgeInsets = NSEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
+        return sv
+    }()
+
+    private let chatInputScrollView: NSScrollView = {
+        let sv = NSScrollView()
+        sv.hasVerticalScroller = false
+        sv.hasHorizontalScroller = false
+        sv.autohidesScrollers = true
+        sv.drawsBackground = false
+        sv.borderType = .noBorder
+        return sv
+    }()
+
+    private let chatInputTextView: NSTextView = {
+        let tv = NSTextView()
+        tv.isRichText = false
+        tv.isEditable = true
+        tv.isSelectable = true
+        tv.drawsBackground = false
+        tv.font = .systemFont(ofSize: 14, weight: .regular)
+        tv.textColor = .white
+        tv.isAutomaticQuoteSubstitutionEnabled = false
+        tv.isAutomaticDashSubstitutionEnabled = false
+        tv.isAutomaticTextReplacementEnabled = false
+        tv.isAutomaticSpellingCorrectionEnabled = false
+        tv.enabledTextCheckingTypes = 0
+        tv.textContainerInset = NSSize(width: 0, height: 4)
+        tv.textContainer?.lineBreakMode = .byWordWrapping
+        tv.textContainer?.widthTracksTextView = true
+        tv.isVerticallyResizable = true
+        tv.isHorizontallyResizable = false
+        tv.autoresizingMask = [.width]
+        tv.focusRingType = .none
+        return tv
+    }()
+
+    private let chatInputSeparator: NSView = {
+        let v = NSView()
+        v.wantsLayer = true
+        v.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        return v
+    }()
+
+    private let chatInputPlaceholder: NSTextField = {
+        let tf = NSTextField(labelWithString: "Ask Sky anything...")
+        tf.font = .systemFont(ofSize: 14, weight: .regular)
+        tf.textColor = NSColor.placeholderTextColor
+        tf.isEditable = false
+        tf.isSelectable = false
+        tf.drawsBackground = false
+        tf.isBezeled = false
+        return tf
+    }()
+
+    private var chatInputHeightConstraint: NSLayoutConstraint?
+
+    private let chatToggleButton: NSButton = {
+        let b = NSButton()
+        b.title = "Chat"
+        b.image = NSImage(systemSymbolName: "bubble.left.and.bubble.right",
+                          accessibilityDescription: "Chat")
+        b.imagePosition = .imageLeading
+        b.bezelStyle = .rounded
+        b.isBordered = true
+        b.font = .systemFont(ofSize: 12, weight: .medium)
+        b.contentTintColor = .systemBlue
+        return b
     }()
 
     // MARK: - Mail Preview Views
@@ -549,6 +654,14 @@ final class PanelViewController: NSViewController {
         setupLayout()
         bindViewModel()
         textView.delegate = self
+        cmdFMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self,
+                  event.modifierFlags.contains(.command),
+                  event.charactersIgnoringModifiers == "f" else { return event }
+            if case .screenshotSearch = self.viewModel.state { return event }
+            self.enterScreenshotSearch()
+            return nil
+        }
         doItButton.target = self
         doItButton.action = #selector(doItTapped)
         cancelButton.target = self
@@ -571,6 +684,10 @@ final class PanelViewController: NSViewController {
                 self.hideContactDropdown()
             }
         }
+
+        chatToggleButton.target = self
+        chatToggleButton.action = #selector(toggleChat)
+        chatInputTextView.delegate = self
 
         mailPreviewSendButton.target = self
         mailPreviewSendButton.action = #selector(mailPreviewSendTapped)
@@ -638,6 +755,31 @@ final class PanelViewController: NSViewController {
         vibrancyView.addSubview(escHintLabel)
         skillsListScrollView.documentView = skillsListStackView
         vibrancyView.addSubview(skillsListScrollView)
+        // Chat
+        chatStackView.translatesAutoresizingMaskIntoConstraints = false
+        chatScrollView.documentView = chatStackView
+        vibrancyView.addSubview(chatContainer)
+        chatInputScrollView.documentView = chatInputTextView
+        chatInputTextView.minSize = NSSize(width: 0, height: 0)
+        chatInputTextView.maxSize = NSSize(width: Constants.Panel.width, height: CGFloat.greatestFiniteMagnitude)
+        chatContainer.addSubview(chatScrollView)
+        chatContainer.addSubview(chatInputSeparator)
+        chatContainer.addSubview(chatInputScrollView)
+        chatContainer.addSubview(chatInputPlaceholder)
+        vibrancyView.addSubview(chatToggleButton)
+
+        // Sky logo button — bottom-left, symmetric with chat button bottom-right
+        logoButton = NSButton()
+        logoButton.image = NSImage(systemSymbolName: "sparkle", accessibilityDescription: "Sky menu")
+        logoButton.imageScaling = .scaleProportionallyDown
+        logoButton.bezelStyle = .inline
+        logoButton.isBordered = false
+        logoButton.contentTintColor = .secondaryLabelColor
+        logoButton.translatesAutoresizingMaskIntoConstraints = false
+        logoButton.target = self
+        logoButton.action = #selector(logoButtonTapped)
+        vibrancyView.addSubview(logoButton)
+
         // Mail preview
         mailPreviewBodyTextView.minSize = NSSize(width: 0, height: 0)
         mailPreviewBodyTextView.maxSize = NSSize(width: Constants.Panel.width, height: CGFloat.greatestFiniteMagnitude)
@@ -688,7 +830,8 @@ final class PanelViewController: NSViewController {
          skillEditorToggle, skillEditErrorLabel,
          mailPreviewContainer, mailPreviewToLabel, mailPreviewTopSeparator, mailPreviewSubjectField,
          mailPreviewBottomSeparator, mailPreviewBodyScrollView, mailPreviewSendButton,
-         mailPreviewCancelButton].forEach {
+         mailPreviewCancelButton,
+         chatContainer, chatScrollView, chatInputSeparator, chatInputScrollView, chatInputPlaceholder, chatToggleButton, logoButton].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
         }
 
@@ -702,8 +845,8 @@ final class PanelViewController: NSViewController {
             vibrancyView.topAnchor.constraint(equalTo: view.topAnchor),
             vibrancyView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            // Input scroll view
-            inputScrollView.leadingAnchor.constraint(equalTo: vibrancyView.leadingAnchor, constant: 20),
+            // Input scroll view — offset right of the 20pt logo button (leading=12, width=20, gap=12)
+            inputScrollView.leadingAnchor.constraint(equalTo: vibrancyView.leadingAnchor, constant: 44),
             inputScrollView.trailingAnchor.constraint(equalTo: spinner.leadingAnchor, constant: -8),
 
             // Placeholder label — same position as inputScrollView
@@ -896,7 +1039,52 @@ final class PanelViewController: NSViewController {
 
             mailPreviewCancelButton.trailingAnchor.constraint(equalTo: mailPreviewSendButton.leadingAnchor, constant: -8),
             mailPreviewCancelButton.bottomAnchor.constraint(equalTo: mailPreviewContainer.bottomAnchor, constant: -10),
+
+            // Chat container — full vibrancy area
+            chatContainer.leadingAnchor.constraint(equalTo: vibrancyView.leadingAnchor),
+            chatContainer.trailingAnchor.constraint(equalTo: vibrancyView.trailingAnchor),
+            chatContainer.topAnchor.constraint(equalTo: vibrancyView.topAnchor),
+            chatContainer.bottomAnchor.constraint(equalTo: vibrancyView.bottomAnchor),
+
+            // Chat scroll view (messages)
+            chatScrollView.topAnchor.constraint(equalTo: chatContainer.topAnchor, constant: 8),
+            chatScrollView.leadingAnchor.constraint(equalTo: chatContainer.leadingAnchor, constant: 12),
+            chatScrollView.trailingAnchor.constraint(equalTo: chatContainer.trailingAnchor, constant: -12),
+            chatScrollView.bottomAnchor.constraint(equalTo: chatInputSeparator.topAnchor, constant: -8),
+
+            // Stack view width tracks scroll view
+            chatStackView.widthAnchor.constraint(equalTo: chatScrollView.widthAnchor),
+
+            // Input separator — thin line above the chat input, like the main panel
+            chatInputSeparator.leadingAnchor.constraint(equalTo: chatContainer.leadingAnchor),
+            chatInputSeparator.trailingAnchor.constraint(equalTo: chatContainer.trailingAnchor),
+            chatInputSeparator.bottomAnchor.constraint(equalTo: chatInputScrollView.topAnchor, constant: -8),
+            chatInputSeparator.heightAnchor.constraint(equalToConstant: 0.5),
+
+            // Chat input scroll view — expands with content up to max
+            chatInputScrollView.leadingAnchor.constraint(equalTo: chatContainer.leadingAnchor, constant: 20),
+            chatInputScrollView.trailingAnchor.constraint(equalTo: chatContainer.trailingAnchor, constant: -20),
+            chatInputScrollView.bottomAnchor.constraint(equalTo: chatContainer.bottomAnchor, constant: -12),
+
+            // Placeholder aligned to input
+            chatInputPlaceholder.leadingAnchor.constraint(equalTo: chatInputScrollView.leadingAnchor),
+            chatInputPlaceholder.topAnchor.constraint(equalTo: chatInputScrollView.topAnchor, constant: 4),
+
+            // Chat toggle button — bottom-right of vibrancy view
+            chatToggleButton.bottomAnchor.constraint(equalTo: vibrancyView.bottomAnchor, constant: -10),
+            chatToggleButton.trailingAnchor.constraint(equalTo: vibrancyView.trailingAnchor, constant: -12),
+
+            // Logo button — bottom-left, symmetric with chat button
+            logoButton.centerYAnchor.constraint(equalTo: vibrancyView.centerYAnchor),
+            logoButton.leadingAnchor.constraint(equalTo: vibrancyView.leadingAnchor, constant: 12),
+            logoButton.widthAnchor.constraint(equalToConstant: 20),
+            logoButton.heightAnchor.constraint(equalToConstant: 20),
         ])
+
+        // Chat input height — starts at 1 line, grows up to 4 lines then scrolls
+        let chatH = chatInputScrollView.heightAnchor.constraint(equalToConstant: 24)
+        chatH.isActive = true
+        chatInputHeightConstraint = chatH
 
         // Input scroll view mode constraints — swapped between normal and skill creation
         let tfCenterY = inputScrollView.topAnchor.constraint(equalTo: vibrancyView.topAnchor, constant: 12)
@@ -983,6 +1171,19 @@ final class PanelViewController: NSViewController {
         if case .mailPreview = state {} else {
             mailPreviewContainer.isHidden = true
         }
+
+        // Safety: hide chat container unless specifically in chat state.
+        if case .chat = state {} else {
+            chatContainer.isHidden = true
+        }
+
+        // Chat toggle button: visible only when there's an answer to discuss, or while in chat
+        if case .chat = state { /* managed by toggleChat */ }
+        else if case .answer = state { /* shown below */ }
+        else { chatToggleButton.isHidden = true }
+
+        // Safety: screenshot search is managed by enterScreenshotSearch/exitScreenshotSearch directly.
+        if case .screenshotSearch = state { return }
 
         switch state {
         case .idle:
@@ -1144,6 +1345,13 @@ final class PanelViewController: NSViewController {
             separator.isHidden = false
             answerScrollView.isHidden = false
             resizePanelForAnswer()
+            lastSkyResponse = text
+            chatToggleButton.title = "Chat"
+            chatToggleButton.image = NSImage(systemSymbolName: "bubble.left.and.bubble.right",
+                                             accessibilityDescription: "Chat")
+            chatToggleButton.imagePosition = .imageLeading
+            chatToggleButton.contentTintColor = .systemBlue
+            chatToggleButton.isHidden = false
 
         case .workflowConfirmation(let workflow):
             spinner.stopAnimation(nil)
@@ -1265,6 +1473,27 @@ final class PanelViewController: NSViewController {
 
         case .skillEdit(let card):
             applySkillEditState(card: card)
+
+        case .screenshotSearch:
+            break // Managed by enterScreenshotSearch/exitScreenshotSearch
+
+        case .chat:
+            spinner.stopAnimation(nil)
+            spinner.isHidden = true
+            inputScrollView.isHidden = true
+            placeholderLabel.isHidden = true
+            successLabel.isHidden = true
+            setupContainer.isHidden = true
+            answerScrollView.isHidden = true
+            cardContainer.isHidden = true
+            flowContainer.isHidden = true
+            skillsListScrollView.isHidden = true
+            skillHeaderLabel.isHidden = true
+            skillBadgeLabel.isHidden = true
+            skillFeedbackLabel.isHidden = true
+            separator.isHidden = true
+            chatContainer.isHidden = false
+            resizePanelToHeight(440)
         }
     }
 
@@ -1437,6 +1666,19 @@ final class PanelViewController: NSViewController {
             frame.origin.y -= delta
             panel.setFrame(frame, display: true, animate: true)
         }
+    }
+
+    private func resizeChatInputForContent() {
+        guard let layoutManager = chatInputTextView.layoutManager,
+              let textContainer = chatInputTextView.textContainer else { return }
+        layoutManager.ensureLayout(for: textContainer)
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        let contentHeight = ceil(usedRect.height) + chatInputTextView.textContainerInset.height * 2
+        // Grow from 1 line (24pt) up to ~4 lines (96pt), then scroll
+        let newHeight = max(24, min(96, contentHeight))
+        chatInputHeightConstraint?.constant = newHeight
+        // Enable scrolling once content exceeds the cap
+        chatInputScrollView.hasVerticalScroller = newHeight >= 96
     }
 
     private func resizePanelForSetup() {
@@ -2113,8 +2355,8 @@ extension PanelViewController: NSTextViewDelegate, NSTextFieldDelegate {
     // MARK: NSTextViewDelegate — main input textView
 
     func textDidChange(_ notification: Notification) {
-        // Save to editor memory when the skill editor text view changes
-        if (notification.object as? NSTextView) === skillEditTextView {
+        guard let tv = notification.object as? NSTextView else { return }
+        if tv === skillEditTextView {
             if viewModel.isInSkillEditorMode {
                 SkillEditorMemory.shared.save(
                     text: skillEditTextView.string,
@@ -2125,9 +2367,17 @@ extension PanelViewController: NSTextViewDelegate, NSTextFieldDelegate {
             }
             return
         }
-        updatePlaceholder()
-        resizeForContent()
-        handleTextDidChange(textView.string)
+        if tv === chatInputTextView {
+            chatInputPlaceholder.isHidden = !chatInputTextView.string.isEmpty
+            resizeChatInputForContent()
+            return
+        }
+        if tv === textView {
+            updatePlaceholder()
+            resizeForContent()
+            handleTextDidChange(textView.string)
+        }
+        // Ignore changes from any other text view
     }
 
     private func handleTextDidChange(_ text: String) {
@@ -2140,11 +2390,26 @@ extension PanelViewController: NSTextViewDelegate, NSTextFieldDelegate {
     }
 
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-        // Mail preview body text view — only intercept Escape to cancel the preview.
+        // Chat input text view — Enter submits, Escape exits chat
+        if textView === chatInputTextView {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                submitChatInput()
+                return true
+            }
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                handleEscape()
+                return true
+            }
+            return false
+        }
+
+        // Mail preview body text view — Escape cancels the preview and dismisses the panel.
         if textView === mailPreviewBodyTextView {
             if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                PanelInputMemory.shared.clear()
                 viewModel.cancelMailPreview()
                 resizePanel(showCard: false)
+                NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
                 return true
             }
             return false
@@ -2223,46 +2488,16 @@ extension PanelViewController: NSTextViewDelegate, NSTextFieldDelegate {
             if case .awaitingAPIKey = viewModel.state {
                 viewModel.saveAPIKey(textView.string)
             } else {
+                lastUserCommand = textView.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                lastSkyResponse = ""
+                ChatService.shared.clearPrimedContext()
                 viewModel.submit()
             }
             return true
         }
 
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
-            if case .mailPreview = viewModel.state {
-                viewModel.cancelMailPreview()
-                resizePanel(showCard: false)
-                return true
-            }
-            if case .skillEdit = viewModel.state {
-                SkillEditorMemory.shared.clear()
-                editingSkillCard = nil
-                viewModel.showSkillsList()
-                return true
-            }
-            if case .skillsList = viewModel.state {
-                viewModel.reset()
-                resizePanel(showCard: false)
-                NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
-                return true
-            }
-            if viewModel.isInSkillCreationMode {
-                // Exit skill creation entirely — clears flag, sets state = .idle, applies(state:) resets text field
-                viewModel.exitSkillCreationMode()
-                NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
-                return true
-            }
-            if !contactDropdown.isHidden {
-                hideContactDropdown()
-                activeMentionRange = nil
-                return true
-            }
-            // Save text before Escape dismiss — only submit clears memory
-            let typed = viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !typed.isEmpty { PanelInputMemory.shared.save(typed) }
-            viewModel.reset()
-            resizePanel(showCard: false)
-            NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
+            handleEscape()
             return true
         }
 
@@ -2335,6 +2570,438 @@ extension PanelViewController: NSTextViewDelegate, NSTextFieldDelegate {
         window.setFrame(newFrame, display: true, animate: false)
         lastInputHeight = inputHeight
         view.needsLayout = true
+    }
+
+    // MARK: - Screenshot Search
+
+    // MARK: - Left Panel
+
+    @objc private func logoButtonTapped() {
+        if leftPanelVisible {
+            hideLeftPanel()
+        } else {
+            showLeftPanel()
+        }
+    }
+
+    private func showLeftPanel() {
+        guard let mainWindow = view.window else { return }
+
+        let vc = SkyLeftPanelViewController()
+        leftPanelVC = vc
+
+        vc.onDismiss = { [weak self] in self?.hideLeftPanel() }
+
+        vc.onCommandSelected = { [weak self] (command: String) in
+            guard let self else { return }
+            self.hideLeftPanel()
+
+            if command == "__screenshots__" {
+                self.enterScreenshotSearch()
+                return
+            }
+            if command == "__chat__" {
+                if case .chat = self.viewModel.state { return }
+                self.toggleChat()
+                return
+            }
+            if command == "__settings__" {
+                self.viewModel.showSetup()
+                return
+            }
+
+            self.textView.string = command
+            self.viewModel.inputText = command
+            // Move cursor to end
+            let end = (command as NSString).length
+            self.textView.setSelectedRange(NSRange(location: end, length: 0))
+            self.view.window?.makeFirstResponder(self.textView)
+            self.updatePlaceholder()
+        }
+
+        // Create panel at a provisional size, hidden (alpha=0).
+        // refresh() → layoutAndResize() will set the real height before we animate.
+        let panelWidth: CGFloat = 240
+        let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let provisionalHeight: CGFloat = 520
+        let provisionalOrigin = CGPoint(
+            x: mainWindow.frame.minX - panelWidth - 8,
+            y: screenFrame.minY + (screenFrame.height - provisionalHeight) / 2
+        )
+        let provisionalRect = NSRect(origin: provisionalOrigin,
+                                     size: CGSize(width: panelWidth, height: provisionalHeight))
+
+        let childPanel = NSPanel(
+            contentRect: provisionalRect,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        childPanel.isOpaque = false
+        childPanel.backgroundColor = .clear
+        childPanel.hasShadow = true
+        childPanel.alphaValue = 0          // invisible until fully laid out
+        childPanel.contentViewController = vc
+        mainWindow.addChildWindow(childPanel, ordered: .above)
+
+        // Populate content and resize to the real height while still invisible.
+        vc.refresh()
+        leftPanelVisible = true
+
+        // Now childPanel.frame reflects the true content height from layoutAndResize().
+        let finalRect = childPanel.frame
+        var startFrame = finalRect
+        startFrame.origin.x -= 20
+        childPanel.setFrame(startFrame, display: false)
+
+        // Dismiss left panel when the user clicks anywhere on the main panel.
+        leftPanelClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            guard let self, self.leftPanelVisible else { return event }
+            if event.window != self.leftPanelVC?.view.window {
+                self.hideLeftPanel()
+            }
+            return event
+        }
+
+        // Slide in at the correct size — no post-animation resize jump.
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.22
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            childPanel.animator().setFrame(finalRect, display: true)
+            childPanel.animator().alphaValue = 1
+        }
+    }
+
+    private func hideLeftPanel() {
+        if let monitor = leftPanelClickMonitor {
+            NSEvent.removeMonitor(monitor)
+            leftPanelClickMonitor = nil
+        }
+        guard leftPanelVisible, let childPanel = leftPanelVC?.view.window else {
+            leftPanelVisible = false
+            leftPanelVC = nil
+            return
+        }
+        leftPanelVisible = false
+        leftPanelVC = nil
+
+        var endFrame = childPanel.frame
+        endFrame.origin.x -= 20
+
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.18
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            childPanel.animator().setFrame(endFrame, display: true)
+            childPanel.animator().alphaValue = 0
+        }, completionHandler: {
+            DispatchQueue.main.async {
+                childPanel.parent?.removeChildWindow(childPanel)
+                childPanel.close()
+            }
+        })
+    }
+
+    /// Called by AppDelegate when the main panel is ordered out, to reset left panel state.
+    func panelWillHide() {
+        if leftPanelVisible {
+            hideLeftPanel()
+        }
+    }
+
+    private func handleEscape() {
+        // 0. Dismiss left panel if open
+        if leftPanelVisible {
+            hideLeftPanel()
+            return
+        }
+
+        // 1. Exit screenshot search
+        if screenshotSearchVC != nil {
+            exitScreenshotSearch()
+            return
+        }
+
+        // 2. Exit chat mode
+        if case .chat = viewModel.state {
+            PanelInputMemory.shared.clear()
+            lastUserCommand = ""
+            lastSkyResponse = ""
+            ChatService.shared.clearPrimedContext()
+            viewModel.exitChatMode()
+            viewModel.clearPersistedState()
+            resizePanelToHeight(Constants.Panel.inputHeight)
+            NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
+            return
+        }
+
+        // 3. Cancel mail preview → return to idle, then hide
+        if case .mailPreview = viewModel.state {
+            PanelInputMemory.shared.clear()
+            viewModel.cancelMailPreview()     // already calls clearPersistedState()
+            resizePanel(showCard: false)
+            NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
+            return
+        }
+
+        // 4. Skill editor sub-states — navigate back without full dismiss
+        if case .skillEdit = viewModel.state {
+            SkillEditorMemory.shared.clear()
+            editingSkillCard = nil
+            viewModel.showSkillsList()
+            return
+        }
+        if case .skillsList = viewModel.state {
+            PanelInputMemory.shared.clear()
+            viewModel.reset()
+            viewModel.clearPersistedState()
+            resizePanel(showCard: false)
+            NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
+            return
+        }
+        if viewModel.isInSkillCreationMode {
+            PanelInputMemory.shared.clear()
+            viewModel.exitSkillCreationMode()
+            viewModel.clearPersistedState()
+            NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
+            return
+        }
+
+        // 5. Dismiss contact dropdown without closing panel
+        if !contactDropdown.isHidden {
+            hideContactDropdown()
+            activeMentionRange = nil
+            return
+        }
+
+        // 6. Full reset — clear everything and hide
+        PanelInputMemory.shared.clear()
+        viewModel.reset()
+        viewModel.clearPersistedState()
+        resizePanel(showCard: false)
+        NotificationCenter.default.post(name: Constants.NotificationName.hidePanel, object: nil)
+    }
+
+    @objc func performFindPanelAction(_ sender: Any?) {
+        guard case .screenshotSearch = viewModel.state else {
+            enterScreenshotSearch()
+            return
+        }
+    }
+
+    private func enterScreenshotSearch() {
+        inputScrollView.isHidden = true
+        placeholderLabel.isHidden = true
+        cardContainer.isHidden = true
+        chatContainer.isHidden = true
+        chatToggleButton.isHidden = true
+        separator.isHidden = true
+        successLabel.isHidden = true
+
+        let vc = ScreenshotSearchViewController()
+        vc.onDismiss = { [weak self] in self?.exitScreenshotSearch() }
+        addChild(vc)
+        vc.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(vc.view)
+        NSLayoutConstraint.activate([
+            vc.view.topAnchor.constraint(equalTo: view.topAnchor),
+            vc.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            vc.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            vc.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        screenshotSearchVC = vc
+        viewModel.enterScreenshotSearch()
+        resizePanelToHeight(440)
+        view.window?.makeFirstResponder(vc.view)
+    }
+
+    private func exitScreenshotSearch() {
+        screenshotSearchVC?.view.removeFromSuperview()
+        screenshotSearchVC?.removeFromParent()
+        screenshotSearchVC = nil
+        viewModel.exitScreenshotSearch()
+        resizePanelToHeight(Constants.Panel.inputHeight)
+        view.window?.makeFirstResponder(textView)
+    }
+
+    // MARK: - Chat
+
+    private func resizePanelToHeight(_ height: CGFloat) {
+        guard let panel = view.window else { return }
+        DispatchQueue.main.async {
+            var frame = panel.frame
+            let delta = height - frame.height
+            frame.size.height = height
+            frame.origin.y -= delta
+            panel.setFrame(frame, display: true, animate: true)
+        }
+    }
+
+    @objc private func toggleChat() {
+        if case .chat = viewModel.state {
+            chatToggleButton.title = "Chat"
+            chatToggleButton.image = NSImage(systemSymbolName: "bubble.left.and.bubble.right",
+                                             accessibilityDescription: "Chat")
+            chatToggleButton.imagePosition = .imageLeading
+            chatToggleButton.contentTintColor = .systemBlue
+            viewModel.exitChatMode()
+            resizePanelToHeight(Constants.Panel.inputHeight)
+        } else {
+            chatToggleButton.title = "Close"
+            chatToggleButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close chat")
+            chatToggleButton.imagePosition = .imageLeading
+            chatToggleButton.contentTintColor = .systemBlue
+            // Clear the input field for a fresh conversation
+            chatInputTextView.string = ""
+            chatInputPlaceholder.isHidden = false
+            chatInputHeightConstraint?.constant = 24
+            chatInputScrollView.hasVerticalScroller = false
+            // Start a fresh session — no old history, just the current context
+            ChatService.shared.resetSession()
+            if !lastSkyResponse.isEmpty {
+                ChatService.shared.primeWithContext(userCommand: lastUserCommand, skyResponse: lastSkyResponse)
+            }
+            viewModel.enterChatMode()
+            renderChatMessages()
+            view.window?.makeFirstResponder(chatInputTextView)
+        }
+    }
+
+    private func submitChatInput() {
+        let text = chatInputTextView.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        chatInputTextView.string = ""
+        chatInputPlaceholder.isHidden = false
+        chatInputHeightConstraint?.constant = 24
+
+        // Optimistic user bubble
+        let userMsg = ChatService.Message(id: UUID().uuidString, role: "user", content: text, createdAt: Date())
+        chatStackView.addArrangedSubview(makeChatBubble(message: userMsg))
+
+        // Typing indicator
+        let indicator = makeTypingIndicator()
+        chatStackView.addArrangedSubview(indicator)
+        scrollChatToBottom()
+
+        Task {
+            let response = await ChatService.shared.send(userMessage: text)
+            indicator.removeFromSuperview()
+            let assistantMsg = ChatService.Message(id: UUID().uuidString, role: "assistant", content: response, createdAt: Date())
+            chatStackView.addArrangedSubview(makeChatBubble(message: assistantMsg))
+            scrollChatToBottom()
+        }
+    }
+
+    private func makeChatBubble(message: ChatService.Message) -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let textField = NSTextField(wrappingLabelWithString: message.content)
+        textField.translatesAutoresizingMaskIntoConstraints = false
+        textField.font = .systemFont(ofSize: 13)
+        textField.isSelectable = true
+        textField.isBezeled = false
+        textField.drawsBackground = false
+        textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        let timeLabel = NSTextField(labelWithString: formatChatDate(message.createdAt))
+        timeLabel.translatesAutoresizingMaskIntoConstraints = false
+        timeLabel.font = .systemFont(ofSize: 10)
+        timeLabel.textColor = .tertiaryLabelColor
+
+        if message.isUser {
+            textField.textColor = .white
+
+            // Bubble wrapper gives proper internal padding around the text
+            let bubble = NSView()
+            bubble.translatesAutoresizingMaskIntoConstraints = false
+            bubble.wantsLayer = true
+            bubble.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.2).cgColor
+            bubble.layer?.cornerRadius = 14
+
+            bubble.addSubview(textField)
+            container.addSubview(bubble)
+            container.addSubview(timeLabel)
+
+            NSLayoutConstraint.activate([
+                // Text inside bubble with 12pt horizontal, 8pt vertical padding
+                textField.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 8),
+                textField.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -8),
+                textField.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
+                textField.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12),
+
+                // Bubble right-aligned, max 240pt wide
+                bubble.topAnchor.constraint(equalTo: container.topAnchor, constant: 4),
+                bubble.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+                bubble.widthAnchor.constraint(lessThanOrEqualToConstant: 240),
+
+                // Timestamp below bubble, right-aligned
+                timeLabel.topAnchor.constraint(equalTo: bubble.bottomAnchor, constant: 3),
+                timeLabel.trailingAnchor.constraint(equalTo: bubble.trailingAnchor),
+                timeLabel.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -3),
+            ])
+        } else {
+            textField.textColor = NSColor.white.withAlphaComponent(0.9)
+
+            container.addSubview(textField)
+            container.addSubview(timeLabel)
+
+            NSLayoutConstraint.activate([
+                textField.topAnchor.constraint(equalTo: container.topAnchor, constant: 4),
+                textField.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+                textField.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+                timeLabel.topAnchor.constraint(equalTo: textField.bottomAnchor, constant: 3),
+                timeLabel.leadingAnchor.constraint(equalTo: textField.leadingAnchor),
+                timeLabel.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -3),
+            ])
+        }
+
+        return container
+    }
+
+    private func makeTypingIndicator() -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        let label = NSTextField(labelWithString: "Sky is thinking…")
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.font = .systemFont(ofSize: 12)
+        label.textColor = .secondaryLabelColor
+        container.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
+            label.topAnchor.constraint(equalTo: container.topAnchor, constant: 6),
+            label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -6),
+            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
+        ])
+        return container
+    }
+
+    private func renderChatMessages() {
+        chatStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        for msg in ChatService.shared.messages {
+            chatStackView.addArrangedSubview(makeChatBubble(message: msg))
+        }
+        scrollChatToBottom()
+    }
+
+    private func scrollChatToBottom() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let sv = self?.chatScrollView else { return }
+            let maxY = sv.documentView?.bounds.height ?? 0
+            sv.contentView.scroll(to: NSPoint(x: 0, y: max(0, maxY - sv.bounds.height)))
+        }
+    }
+
+    private func formatChatDate(_ date: Date) -> String {
+        let cal = Calendar.current
+        let formatter = DateFormatter()
+        if cal.isDateInToday(date) {
+            formatter.dateFormat = "h:mma"
+        } else if cal.isDateInYesterday(date) {
+            formatter.dateFormat = "'Yesterday' h:mma"
+        } else {
+            formatter.dateFormat = "MMM d, h:mma"
+        }
+        return formatter.string(from: date).lowercased()
     }
 
     // MARK: - @mention detection

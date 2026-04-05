@@ -52,6 +52,11 @@
 		F2212C909E616618CABDE35E /* ActionRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B3053CC4A323928D59F6D5 /* ActionRouter.swift */; };
 		FD62F74F76F4A8CA2979FE3E /* AppleScriptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C9ADC8CF20CFA75D9C2CA2 /* AppleScriptService.swift */; };
 		FD63BC0D800775C7A50C4BB9 /* MemoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88D12BF4DF030514C53D3F6B /* MemoryService.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* ChatService.swift */; };
+		B1C2D3E4F5061728394A5B6C /* ScreenshotResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5061728394A5B6D /* ScreenshotResult.swift */; };
+		B1C2D3E4F5061728394A5B6E /* ScreenshotIndexService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5061728394A5B6F /* ScreenshotIndexService.swift */; };
+		B1C2D3E4F5061728394A5B70 /* ScreenshotSearchViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5061728394A5B71 /* ScreenshotSearchViewController.swift */; };
+		C2D3E4F5061728394A5B6C7D /* SkyLeftPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2D3E4F5061728394A5B6C7E /* SkyLeftPanelViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -82,6 +87,11 @@
 		804EDFC05D47B49ECD79F1D4 /* FloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanel.swift; sourceTree = "<group>"; };
 		88AD71161047B722F365A5EC /* ContextService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextService.swift; sourceTree = "<group>"; };
 		88D12BF4DF030514C53D3F6B /* MemoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
+		B1C2D3E4F5061728394A5B6D /* ScreenshotResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotResult.swift; sourceTree = "<group>"; };
+		B1C2D3E4F5061728394A5B6F /* ScreenshotIndexService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotIndexService.swift; sourceTree = "<group>"; };
+		B1C2D3E4F5061728394A5B71 /* ScreenshotSearchViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSearchViewController.swift; sourceTree = "<group>"; };
+		C2D3E4F5061728394A5B6C7E /* SkyLeftPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyLeftPanelViewController.swift; sourceTree = "<group>"; };
 		8D72F4F64C70F13159405E99 /* LoggingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggingService.swift; sourceTree = "<group>"; };
 		9B09CAC09E47262613E892DC /* SchedulerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulerService.swift; sourceTree = "<group>"; };
 		9C1F82E27F831ADD77C07857 /* PanelInputMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelInputMemory.swift; sourceTree = "<group>"; };
@@ -185,6 +195,7 @@
 			isa = PBXGroup;
 			children = (
 				ADC76CC5045C0C49B4237C1E /* ActionResult.swift */,
+				B1C2D3E4F5061728394A5B6D /* ScreenshotResult.swift */,
 				A45162E3D8509AE5DE1BA508 /* Config.swift */,
 				EE77558377E9DF6FB494F28F /* ParsedIntent.swift */,
 				78C2B87BC76A9E66A6991E0D /* ResolvedContact.swift */,
@@ -229,6 +240,8 @@
 				43630CCD10BC55BC5C634E8C /* ContactDropdownView.swift */,
 				804EDFC05D47B49ECD79F1D4 /* FloatingPanel.swift */,
 				BCF55DD01F60E5E2B086C258 /* PanelViewController.swift */,
+				B1C2D3E4F5061728394A5B71 /* ScreenshotSearchViewController.swift */,
+				C2D3E4F5061728394A5B6C7E /* SkyLeftPanelViewController.swift */,
 				27D9594C58B7DDE83D9B8C7F /* PanelViewModel.swift */,
 			);
 			path = Panel;
@@ -261,6 +274,8 @@
 				B16A3AE515A2E8974D5B0B00 /* IntentParser.swift */,
 				8D72F4F64C70F13159405E99 /* LoggingService.swift */,
 				88D12BF4DF030514C53D3F6B /* MemoryService.swift */,
+				A1B2C3D4E5F60718293A4B5D /* ChatService.swift */,
+				B1C2D3E4F5061728394A5B6F /* ScreenshotIndexService.swift */,
 				7854C97ED739363C486A8A48 /* NotificationService.swift */,
 				9C1F82E27F831ADD77C07857 /* PanelInputMemory.swift */,
 				EEC01F357F8D924ABFA8F9D8 /* PermissionsManager.swift */,
@@ -404,6 +419,11 @@
 				B39E9F4CA66F5A005AECA11B /* IntentParser.swift in Sources */,
 				1020D048538DC1CB14818DF6 /* LoggingService.swift in Sources */,
 				FD63BC0D800775C7A50C4BB9 /* MemoryService.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* ChatService.swift in Sources */,
+				B1C2D3E4F5061728394A5B6C /* ScreenshotResult.swift in Sources */,
+				B1C2D3E4F5061728394A5B6E /* ScreenshotIndexService.swift in Sources */,
+				B1C2D3E4F5061728394A5B70 /* ScreenshotSearchViewController.swift in Sources */,
+				C2D3E4F5061728394A5B6C7D /* SkyLeftPanelViewController.swift in Sources */,
 				CCBD1D27EB934FF10D832652 /* MemoryWindowController.swift in Sources */,
 				70FD542658AE8A6751788914 /* MenuBarController.swift in Sources */,
 				B96F2A50405EF667F70166ED /* NotificationService.swift in Sources */,
